@@ -1,8 +1,14 @@
 # BIFROST
 
-BIFROST (Birefringence In Fiber: Research and Optical Simulation Toolkit) is a Python library that provides a set of data, methods, and classes for the simulation of polarization mode dispersion in optical fibers. Silica-based fibers whose core and/or cladding are doped with germania can be simulated.
+BIFROST (Birefringence In Fiber: Research and Optical Simulation Toolkit) is a
+Julia codebase for simulating polarization mode dispersion in optical fibers.
+Silica-based fibers whose core and/or cladding are doped with germania can be
+simulated.
 
-This file is a rewrite underway in julia. 
+The active implementation is a Julia refactor of the original Python
+polarization model. Legacy Python code is retained under `test/legacy-python/`
+as physics reference material and should not be edited during routine Julia
+work.
 
 ## Installation
 
@@ -20,18 +26,52 @@ This file is a rewrite underway in julia.
    juliaup add 1.11.7
    juliaup default 1.11.7
    ```
-## Running Demos
+## Quick Start
 
-To run the demos, navigate to the project directory and use the following commands:
+From the repository root:
 
 ```bash
-cd /path/to/BIFROST_nonlinear
-julia --project=julia-port julia-port/demo.jl
+julia --project=. test/runtests.jl
 ```
 
-Replace `demo.jl` with other demo files like `demo1.jl`, `demo2.jl`, etc., as needed.
+Human-inspected demos live under `test/human/` and write standalone HTML
+artifacts under `output/`:
 
-The demos generate HTML output files in the `output/` directory.
+```bash
+julia --project=. test/human/demo-smallest.jl
+julia --project=. test/human/demo1.jl
+julia --project=. test/human/demo2.jl
+julia --project=. test/human/demo3mcm.jl
+julia --project=. test/human/demo3benchmark.jl
+```
+
+The code is currently organized as include-based Julia scripts rather than a
+packaged module. Most tests and demos include only the files they need.
+
+## Building Blocks
+
+These files are intentionally useful on their own:
+
+| File | Standalone role |
+| --- | --- |
+| `src/material-properties.jl` | Material constants and spectra; no path or fiber geometry. |
+| `src/geometry/path-geometry.jl` | Three-dimensional path construction and geometric queries. |
+| `src/path-integral.jl` | Generic adaptive propagation for callable `K(s)` and `Kω(s)`. |
+
+The fiber layers combine and specialize those pieces:
+
+| File | How it extends the standalone pieces |
+| --- | --- |
+| `src/fiber/fiber-cross-section.jl` | Adds step-index fiber optics and birefringence responses. |
+| `src/fiber/fiber-path.jl` | Binds path geometry to a cross section and assembles bend/twist generators. |
+
+High-level authoring is path based:
+
+1. Build geometry with `PathSpecBuilder`.
+2. Freeze and place it with `build(...)`, producing a `PathSpecCached`.
+3. Bind that path to a `FiberCrossSection` with `Fiber(path; cross_section,
+   T_ref_K)`.
+4. Propagate at a requested wavelength with `propagate_fiber(fiber; λ_m=...)`.
 
 ### Regime of Operation
 
@@ -60,7 +100,6 @@ Based on validation work, as well as the limits of the approximations made and t
 We do not model the temperature dependence of the coefficients of thermal expansion or the photoelastic constants $`p_{11}`$ and $`p_{12}`$ in fused silica and germania, as the variation is small within the above parameter regime.
 
 At this time, we do not moedl polarization-dependent loss or nonlinear scattering effects. These are directions of possible future work.
-
 
 
 

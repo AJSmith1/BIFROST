@@ -3,12 +3,12 @@ AGENTS.md is read by Codex by default.
 Read @ARCHITECTURE.md. 
 
 ## Running Tests
-All test files live under `julia-port/test/`. 
+All test files live under `test/`.
 
-The test orchestrator is `julia-port/test/runtests.jl`. 
+The test orchestrator is `test/runtests.jl`.
 
     ```bash
-    julia --project=. julia-port/test/runtests.jl
+    julia --project=. test/runtests.jl
     ```
 
 ## Test Taxonomy

@@ -9,34 +9,26 @@ This is a high-level schematic. Do not update it to reflect every file.
 ├── ARCHITECTURE.md
 ├── README.md                        [3]
 ├── TODO.md                          [17]
-├── fibers.py                        [4L]
-├── test_fibers.py                   [5L]
-├── Example-Fibers.ipynb             [6L]
-├── brillouin.py, demo_wdm_with_raman.py, raman*.py [16L]
-├── Papers                           [7L]
-├── julia-port                       [8]
-│   ├── README.md                    [18]
-│   ├── Project.toml
-│   ├── Manifest.toml
+├── Project.toml
+├── Manifest.toml
+├── src                              [8]
 │   ├── material-properties.jl       [9]
-│   ├── path-geometry.jl             [10]
 │   ├── path-integral.jl             [11]
-│   ├── fiber-cross-section.jl       [12]
-│   ├── fiber-path.jl                [13]
-│   ├── fiber-path-plot.jl           [14]
-│   ├── demo*.jl                     [15]
-│   └── test                         [19]
-├── output                           [20]
-└── *.py / *.jl supporting scripts
+│   ├── geometry                     [10]
+│   ├── fiber                        [12, 13, 14]
+│   └── nonlinear                    [16]
+├── test                             [19]
+│   ├── human                        [15]
+│   └── legacy-python                [4L]
+├── docs                             [7]
+└── output                           [20]
 ```
 
 - [2] Notes for tooling workflows.
 - [3] Primary project overview and scientific context.
 - [4L] Legacy Python implementation for birefringence simulation.
-- [5L] Python regression and behavior checks.
-- [6L] Interactive notebook example for exploration and demos.
-- [7L] Research references and source material.
-- [8] Active Julia refactor and solver architecture.
+- [7] Documentation, research references, and source material.
+- [8] Active Julia source tree and solver architecture.
 - [9] Standalone material models and refractive-index behavior.
 - [10] Standalone path construction and differential geometry.
 - [11] Generic adaptive propagation for callable Jones generators.
@@ -44,13 +36,13 @@ This is a high-level schematic. Do not update it to reflect every file.
 - [13] Path-backed fiber assembly and generator construction.
 - [14] 3D geometry and propagation visualization pipeline.
 - [15] Runnable Julia demos; visual demos write HTML files to `output/`.
-- [16L] Legacy Raman and Brillouin Python scripts.
+- [16] Reserved Julia nonlinear namespace; legacy Raman and Brillouin Python
+  scripts remain under `test/legacy-python/`.
 - [17] TODO list for humans. Starting TODO items requires user authorization.
-- [18] User guide for the Julia port.
 - [19] Julia tests.
 - [20] Output of demo methods and generated visual artifacts.
 
-Files marked `[L]` are legacy files for the old Python implementation. Do not
+The folder marked `[L]` contains legacy files for the old Python implementation. Do not
 read them unless a specific workflow requires it. They are authoritative for
 legacy behavior and must not be modified without explicit user authorization.
 
@@ -132,7 +124,7 @@ The fiber-specific layers combine those pieces:
 
 ## Runtime Flow
 
-0. See `julia-port/demo-smallest.jl` for the smallest runnable example.
+0. See `test/human/demo-smallest.jl` for the smallest runnable example.
 1. Build a `PathSpecBuilder` with path primitives and optional metadata.
 2. Compile it with `build(...)`, producing a `PathSpecCached`.
 3. Bind it into `Fiber(path; cross_section, T_ref_K)`.
@@ -154,7 +146,7 @@ The fiber-specific layers combine those pieces:
 
 ## Testing Strategy
 
-- Test entrypoint: `julia --project=. julia-port/test/runtests.jl`.
+- Test entrypoint: `julia --project=. test/runtests.jl`.
 - Emphasis areas:
   - path geometry and connector invariants,
   - material and cross-section calculations,
