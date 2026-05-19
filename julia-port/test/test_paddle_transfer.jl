@@ -2,7 +2,7 @@ using Test
 using LinearAlgebra
 
 if !isdefined(Main, :propagate_fiber)
-    include("../path-integral.jl")
+    include(joinpath(@__DIR__, "..", "path-integral.jl"))
 end
 
 const PADDLE_BEND_SCALE = 7.5

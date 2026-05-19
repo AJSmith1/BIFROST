@@ -3,7 +3,7 @@ using LinearAlgebra
 using Random
 
 if !isdefined(Main, :exp_block_upper_triangular_2x2)
-    include("../path-integral.jl")
+    include(joinpath(@__DIR__, "..", "path-integral.jl"))
 end
 
 # Verify the closed-form 4×4 block-upper-triangular exp against LinearAlgebra.exp.

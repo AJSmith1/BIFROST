@@ -2,13 +2,13 @@ using Test
 using LinearAlgebra
 
 if !isdefined(Main, :PathSpecCached)
-    include("../path-geometry.jl")
+    include(joinpath(@__DIR__, "..", "path-geometry.jl"))
 end
 if !isdefined(Main, :Fiber)
-    include("../fiber-path.jl")
+    include(joinpath(@__DIR__, "..", "fiber-path.jl"))
 end
 if !isdefined(Main, :modify)
-    include("../fiber-path-modify.jl")
+    include(joinpath(@__DIR__, "..", "fiber-path-modify.jl"))
 end
 
 # -----------------------------------------------------------------------

@@ -1,2 +1,25 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Force LF for source and config across macOS, Linux, and Windows
+# checkouts. Without this, Windows clients translate LF -> CRLF on
+# checkout, which can confuse diff tools and heredoc-style string
+# comparisons in tests.
+*.jl    text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.py    text eol=lf
+*.ipynb text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+
+# Generated and binary assets — never line-end-normalize.
+*.html  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.pdf   binary
+*.ico   binary

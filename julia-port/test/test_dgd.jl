@@ -2,7 +2,7 @@ using Test
 using LinearAlgebra
 
 if !isdefined(Main, :propagate_fiber_sensitivity)
-    include("../path-integral.jl")
+    include(joinpath(@__DIR__, "..", "path-integral.jl"))
 end
 
 const SIGMA_X = ComplexF64[0 1; 1 0]

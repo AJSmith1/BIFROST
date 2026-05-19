@@ -32,7 +32,7 @@ upcoming features. Agents should not start work on these without explicit author
 ### HIGH LEVEL ###
 ##################
 
-- [ ] Ensure compatability of this codebase with Windows, Linux and MacOS. JWB See linter created 
+- [x] Ensure compatability of this codebase with Windows, Linux and MacOS. JWB See linter created 
 for brittonlab/stablepoint
 
 - [ ] Pythonic interface to the julia code.

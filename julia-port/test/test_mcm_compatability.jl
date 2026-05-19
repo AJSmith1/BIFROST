@@ -2,7 +2,7 @@ using Test
 using MonteCarloMeasurements
 
 if !isdefined(Main, :refractive_index)
-    include("../material-properties.jl")
+    include(joinpath(@__DIR__, "..", "material-properties.jl"))
 end
 
 # Each section below exercises MCM (Particles) compatibility for one source file.
@@ -68,7 +68,7 @@ end
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if !isdefined(Main, :FiberCrossSection)
-    include("../fiber-cross-section.jl")
+    include(joinpath(@__DIR__, "..", "fiber-cross-section.jl"))
 end
 
 @testset "MCM :: fiber-cross-section.jl" begin
@@ -148,8 +148,8 @@ end
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if !isdefined(Main, :exp_jones_generator)
-    include("../fiber-path.jl")
-    include("../path-integral.jl")
+    include(joinpath(@__DIR__, "..", "fiber-path.jl"))
+    include(joinpath(@__DIR__, "..", "path-integral.jl"))
 end
 
 @testset "MCM :: path-integral.jl (Frechet 4×4 exp)" begin
@@ -247,7 +247,7 @@ end
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if !isdefined(Main, :BendSegment)
-    include("../path-geometry.jl")
+    include(joinpath(@__DIR__, "..", "path-geometry.jl"))
 end
 
 @testset "MCM :: path-geometry.jl (segment-level)" begin

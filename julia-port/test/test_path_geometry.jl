@@ -2,7 +2,7 @@ using Test
 using LinearAlgebra
 
 if !isdefined(Main, :PathSpecCached)
-    include("../path-geometry.jl")
+    include(joinpath(@__DIR__, "..", "path-geometry.jl"))
 end
 
 # -----------------------------------------------------------------------
@@ -577,13 +577,13 @@ end
 # -----------------------------------------------------------------------
 
 if !isdefined(Main, :Nickname)
-    include("../fiber-path-meta.jl")
+    include(joinpath(@__DIR__, "..", "fiber-path-meta.jl"))
 end
 if !isdefined(Main, :Fiber)
-    include("../fiber-path.jl")
+    include(joinpath(@__DIR__, "..", "fiber-path.jl"))
 end
 if !isdefined(Main, :modify)
-    include("../fiber-path-modify.jl")
+    include(joinpath(@__DIR__, "..", "fiber-path-modify.jl"))
 end
 
 @testset "per-segment meta — builders forward meta to every segment type" begin

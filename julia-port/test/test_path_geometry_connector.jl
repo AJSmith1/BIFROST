@@ -3,7 +3,7 @@ using LinearAlgebra
 using QuadGK
 
 if !isdefined(Main, :QuinticConnector)
-    include("../path-geometry.jl")
+    include(joinpath(@__DIR__, "..", "path-geometry.jl"))
 end
 
 # -----------------------------------------------------------------------

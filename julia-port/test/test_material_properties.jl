@@ -1,7 +1,7 @@
 using Test
 
 if !isdefined(Main, :refractive_index)
-    include("../material-properties.jl")
+    include(joinpath(@__DIR__, "..", "material-properties.jl"))
 end
 
 const SILICA_B_COEFFS = (

@@ -1,7 +1,7 @@
 using Test
 
 if !isdefined(Main, :FiberCrossSection)
-    include("../fiber-cross-section.jl")
+    include(joinpath(@__DIR__, "..", "fiber-cross-section.jl"))
 end
 
 """
