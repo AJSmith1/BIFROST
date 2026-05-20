@@ -1,7 +1,4 @@
-include(joinpath(@__DIR__, "..", "..", "src", "material-properties.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "fiber", "fiber-cross-section.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "geometry", "path-geometry.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "path-integral.jl"))
+using Bifrost
 
 xs = FiberCrossSection(
     GermaniaSilicaGlass(0.036),

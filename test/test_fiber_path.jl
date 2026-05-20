@@ -1,9 +1,9 @@
 using Test
 using LinearAlgebra
-
+using Bifrost
+# fiber-path-plot.jl is not yet wired into Bifrost.Plots; include directly
+# until that lands.
 if !isdefined(Main, :sample_fiber_centerline)
-    include(joinpath(@__DIR__, "..", "src", "fiber", "fiber-path.jl"))
-    include(joinpath(@__DIR__, "..", "src", "path-integral.jl"))
     include(joinpath(@__DIR__, "..", "src", "fiber", "fiber-path-plot.jl"))
 end
 
