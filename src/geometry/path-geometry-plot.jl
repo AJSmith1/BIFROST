@@ -189,7 +189,7 @@ function write_path_geometry_plot3d(
     label_strs = String[]
     nudge = Float64(segment_label_nudge_frac) * diag
     for ps in placed
-        nick = PathGeometry.segment_nickname(ps.segment)
+        nick = segment_nickname(ps.segment)
         isnothing(nick) && continue
         s_lo = ps.s_offset_eff
         s_hi = s_lo + PathGeometry.arc_length(ps.segment)

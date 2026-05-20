@@ -40,6 +40,10 @@ module PathGeometry
     import Base: position
     # path-geometry.jl already includes path-geometry-connector.jl internally.
     include("geometry/path-geometry.jl")
+    # fiber-path-meta.jl only defines concrete AbstractMeta subtypes
+    # (Nickname, MCMadd, MCMmul) plus segment_nickname — it's path-level
+    # metadata, not fiber-specific, despite the legacy filename.
+    include("fiber/fiber-path-meta.jl")
     import ..Bifrost: _export_public!
     _export_public!(@__MODULE__)
 end
@@ -62,7 +66,6 @@ module FiberPath
                           _build_quintic_connector, _safe_normalize,
                           _qc_nominalize
     using ..FiberCS
-    include("fiber/fiber-path-meta.jl")
     include("fiber/fiber-path.jl")
     include("fiber/fiber-path-modify.jl")
     import ..Bifrost: _export_public!
@@ -95,6 +98,10 @@ for m in (MaterialProperties, FiberCS, PathGeometry, FiberPath, PathIntegral)
     end
 end
 
+# Also export the submodule names themselves so callers can write
+# `PG = PathGeometry` (or qualified `PathGeometry.X`) after `using Bifrost`.
+export MaterialProperties, FiberCS, PathGeometry, FiberPath, PathIntegral
+
 # Plotting lives in a separate `Plots` submodule, opt-in via
 # `using Bifrost.Plots`, so plain `using Bifrost` does not pull plotting
 # symbols into scope.
@@ -104,8 +111,12 @@ module Plots
     using ..FiberCS
     using ..FiberPath
     using ..PathIntegral
+    # Internal helper used by the adaptive-step diagnostic plot.
+    using ..PathIntegral: _frobenius_norm
     include("geometry/path-geometry-plot.jl")
     include("fiber/fiber-path-plot.jl")
+    import ..Bifrost: _export_public!
+    _export_public!(@__MODULE__)
 end
 
 end # module Bifrost
