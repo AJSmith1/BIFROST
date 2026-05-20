@@ -220,8 +220,7 @@ function write_path_geometry_plot3d(
     html = """
     <!--
       Main 3D plot (legend names match Plotly traces):
-      - path: centerline polyline; faint gray line; small markers along the curve colored by
-        arc length s (Turbo colorscale).
+      - path: centerline polyline; thin black line.
       - segment joins: open circles at effective arc-length boundaries between authored
         segments (within the plotted s interval).
       - start / end: filled markers at the first and last sample points of the plotted
@@ -418,22 +417,14 @@ function write_path_geometry_plot3d(
 
         const pathTrace = {
           type: "scatter3d",
-          mode: "lines+markers",
+          mode: "lines",
           x: xs,
           y: ys,
           z: zs,
           hoverinfo: "skip",
           line: {
-            width: 4,
-            color: "rgba(30, 30, 30, 0.25)"
-          },
-          marker: {
-            size: 3.5,
-            color: ss,
-            colorscale: "Turbo",
-            cmin: ss[0],
-            cmax: ss[ss.length - 1],
-            showscale: false
+            width: 1.5,
+            color: "#000000"
           },
           name: "path"
         };
