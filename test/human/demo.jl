@@ -1,10 +1,7 @@
 using MonteCarloMeasurements
 using Bifrost
-
-# Plot files are not yet wired into Bifrost.Plots; include them directly
-# until that lands.
-include(joinpath(@__DIR__, "..", "..", "src", "geometry", "path-geometry-plot.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "fiber", "fiber-path-plot.jl"))
+using Bifrost.Plots
+using Bifrost.Plots.PlotRuntime
 
 
 const DEMO_FIBER_CROSS_SECTION = FiberCrossSection(

@@ -22,18 +22,10 @@ metadata labels, and the Plotly CDN.
 
 using LinearAlgebra
 
-"""
-    PathGeometry
-
-Submodule wrapping `path-geometry.jl` (space-curve `Path` / `PathSpec`). Nesting keeps the
-analytic path API in one namespace and avoids redefining those names in `Main` when this
-file is `include`d alongside unrelated code.
-"""
-module PathGeometry
-using LinearAlgebra
-include(joinpath(@__DIR__, "path-geometry.jl"))
-include(joinpath(@__DIR__, "..", "fiber", "fiber-path-meta.jl"))
-end
+# Reuse the canonical Bifrost.PathGeometry submodule rather than re-including
+# path-geometry.jl here. This file is loaded inside `Bifrost.Plots`, which
+# can see its sibling submodules via `..`.
+using ..PathGeometry
 
 # ---------------------------------------------------------------------------
 # Sampling (uses `frame` from PathGeometry — analytic Frenet data on `Path`)

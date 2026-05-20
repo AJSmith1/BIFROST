@@ -96,15 +96,16 @@ for m in (MaterialProperties, FiberCS, PathGeometry, FiberPath, PathIntegral)
 end
 
 # Plotting lives in a separate `Plots` submodule, opt-in via
-# `using Bifrost.Plots`. The plot files contain legacy `Main.X` references
-# to runtime API in FiberPath/PathIntegral that need to be rewritten before
-# this submodule can be enabled. Until then, callers can still `include`
-# the plot files directly.
-#
-# module Plots
-#     using LinearAlgebra
-#     include("geometry/path-geometry-plot.jl")
-#     include("fiber/fiber-path-plot.jl")
-# end
+# `using Bifrost.Plots`, so plain `using Bifrost` does not pull plotting
+# symbols into scope.
+module Plots
+    using LinearAlgebra
+    using ..PathGeometry
+    using ..FiberCS
+    using ..FiberPath
+    using ..PathIntegral
+    include("geometry/path-geometry-plot.jl")
+    include("fiber/fiber-path-plot.jl")
+end
 
 end # module Bifrost

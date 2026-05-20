@@ -1,11 +1,8 @@
 using Test
 using LinearAlgebra
 using Bifrost
-# fiber-path-plot.jl is not yet wired into Bifrost.Plots; include directly
-# until that lands.
-if !isdefined(Main, :sample_fiber_centerline)
-    include(joinpath(@__DIR__, "..", "src", "fiber", "fiber-path-plot.jl"))
-end
+using Bifrost.Plots
+using Bifrost.Plots.PlotRuntime: sample_fiber_centerline
 
 const CENTERLINE_ATOL = 5e-8
 const TANGENT_ATOL = 5e-13
