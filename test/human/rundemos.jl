@@ -4,82 +4,63 @@ using Bifrost
 using Bifrost.Plots
 using Bifrost.Plots.PlotRuntime
 
-include(joinpath(@__DIR__, "demo5.jl"))
+# Include every demo file. demo3benchmark transitively includes demo4mcm,
+# and demo2 transitively includes demo1, but listing them explicitly keeps
+# the load order deterministic and the file dependencies obvious here.
+include(joinpath(@__DIR__, "demo1.jl"))
+include(joinpath(@__DIR__, "demo2.jl"))
+include(joinpath(@__DIR__, "demo4mcm.jl"))
+include(joinpath(@__DIR__, "demo3benchmark.jl"))
 
 # =====================================================================
-# Index
+# Aggregate index — one section per source demo file. Each section's
+# entries come from that file's own DEMO*_INDEX constant so the
+# descriptions stay next to the implementations.
 # =====================================================================
 
-const DEMO_INDEX = [
-    (fn = demo_path_geometry, kwargs = NamedTuple(),
-     desc = "Mixed-segment path: straight leads, circular bends, a catenary sag, and a " *
-            "material twist overlay — illustrates the segment assembly API and " *
-            "the Frenet–Serret sliding frame."),
-    (fn = demo_path_geometry_segment_labels, kwargs = NamedTuple(),
-     desc = "Same style of path as the mixed-segment demo, but each segment has a `nickname` " *
-            "string; the HTML plot shows those names as 3D labels offset in the osculating plane."),
-    (fn = demo_path_geometry_helix_0, kwargs = NamedTuple(),
-     desc = "HelixSegment with axis_angle = 0 — winding plane aligned to fiber entry direction."),
-    (fn = demo_path_geometry_helix_pi_3, kwargs = NamedTuple(),
-     desc = "HelixSegment with axis_angle = π/3 — winding plane rotated by 60°."),
-    (fn = demo_path_geometry_helix_2pi_3, kwargs = NamedTuple(),
-     desc = "HelixSegment with axis_angle = 2π/3 — winding plane rotated by 120°."),
-    (fn = demo_path_geometry_jumps_min_radius, kwargs = NamedTuple(),
-     desc = "Demonstrate `jumpby!` and `jumpto!` with focus on the min_bend_radius parameter."),
-    (fn = demo_modify_straight_length, kwargs = NamedTuple(),
-     desc = "MCMadd(:length) on the first straight of a 3-segment inverted-U baseline."),
-    (fn = demo_modify_bend_radius, kwargs = NamedTuple(),
-     desc = "MCMadd(:radius) on the bend of a 3-segment inverted-U baseline."),
-    (fn = demo_modify_bend_angle, kwargs = NamedTuple(),
-     desc = "MCMadd(:angle) on the bend of a 3-segment inverted-U baseline."),
-    (fn = demo_modify_straight_length_mul, kwargs = NamedTuple(),
-     desc = "MCMmul(:length) on the first straight of a 3-segment inverted-U baseline."),
-    (fn = demo_modify_bend_radius_mul, kwargs = NamedTuple(),
-     desc = "MCMmul(:radius) on the bend of a 3-segment inverted-U baseline."),
-    (fn = demo_modify_bend_angle_mul, kwargs = NamedTuple(),
-     desc = "MCMmul(:angle) on the bend of a 3-segment inverted-U baseline."),
-    (fn = demo_modify_helix_radius, kwargs = NamedTuple(),
-     desc = "MCMadd(:radius) on the helix of a 4-segment (straight · bend · helix · straight) baseline."),
-    (fn = demo_modify_helix_pitch, kwargs = NamedTuple(),
-     desc = "MCMadd(:pitch) on the helix of a 4-segment baseline."),
-    (fn = demo_modify_helix_turns, kwargs = NamedTuple(),
-     desc = "MCMadd(:turns) on the helix of a 4-segment baseline."),
-    (fn = demo_modify_helix_radius_mul, kwargs = NamedTuple(),
-     desc = "MCMmul(:radius) on the helix of a 4-segment baseline."),
-    (fn = demo_modify_helix_pitch_mul, kwargs = NamedTuple(),
-     desc = "MCMmul(:pitch) on the helix of a 4-segment baseline."),
-    (fn = demo_modify_helix_turns_mul, kwargs = NamedTuple(),
-     desc = "MCMmul(:turns) on the helix of a 4-segment baseline."),
-    (fn = demo_helix_mcm_twist, kwargs = NamedTuple(),
-     desc = "Helix with MCM twist wobble on the lead-in straight (currently skipped pending twist refactor)."),
-    (fn = demo_adaptive_step_doubling, kwargs = NamedTuple(),
-     desc = "Adaptive step-doubling diagnostic on a smooth noncommuting generator " *
-            "K(s) = α·i·σx·cos(πs) + β·i·σz·sin(2πs). Top panel: accepted/rejected " *
-            "step sizes with ‖K(s)‖ overlay; bottom panel: err/tol ratio vs threshold."),
+# Source files in display order. Each tuple:
+#   (source_basename, section_heading, index_constant, group_titles_or_nothing)
+const _RUNDEMOS_SOURCES = [
+    ("demo1.jl",           "demo1 — path geometry, modify, adaptive-step", DEMO_INDEX,            _DEMO1_GROUP_TITLES),
+    ("demo2.jl",           "demo2 — JumpBy / JumpTo",                      DEMO2_INDEX,           nothing),
+    ("demo4mcm.jl",        "demo4mcm — MCM temperature PTF",               DEMO4MCM_INDEX,        nothing),
+    ("demo3benchmark.jl",  "demo3benchmark — MCM propagation timing",      DEMO3BENCHMARK_INDEX,  nothing),
 ]
 
 """
     demo_all(; index_output)
 
-Run every demo in `DEMO_INDEX` and write an `index.html` that links to each output file
-with a short description of what it illustrates.
+Run every demo registered in each demo file's `DEMO*_INDEX` constant and
+write a single `index.html` linking to every output file.
 """
 function demo_all(; index_output::AbstractString = joinpath(@__DIR__, "..", "..", "output", "index.html"))
-    entries = Tuple{String, String, String}[]
+    # entries_by_source: source_basename => Vector{(group, title, path, desc)}
+    entries_by_source = Dict{String, Vector{Tuple{String, String, String, String}}}()
 
-    for d in DEMO_INDEX
-        result = d.fn(; d.kwargs...)
-        paths = result isa NamedTuple ? values(result) : (result,)
-        for v in paths
-            if v isa AbstractString && endswith(v, ".html")
-                push!(entries, (basename(v), v, d.desc))
-            elseif v isa AbstractVector
-                for item in v
-                    item isa AbstractString && endswith(item, ".html") &&
-                        push!(entries, (basename(item), item, d.desc))
+    for (source, _heading, index, _groups) in _RUNDEMOS_SOURCES
+        entries = Tuple{String, String, String, String}[]
+        for d in index
+            println("[ $(source) ] $(d.fn)")
+            result = d.fn(; d.kwargs...)
+            desc_inline = (result isa NamedTuple && haskey(result, :desc)) ?
+                          String(result.desc) : nothing
+            desc_entry  = hasproperty(d, :desc) ? d.desc : ""
+            desc        = isnothing(desc_inline) ? desc_entry : desc_inline
+            group       = hasproperty(d, :group) ? d.group : ""
+
+            paths = result isa NamedTuple ? values(result) : (result,)
+            for v in paths
+                if v isa AbstractString && endswith(v, ".html")
+                    push!(entries, (group, basename(v), v, desc))
+                elseif v isa AbstractVector
+                    for item in v
+                        item isa AbstractString && endswith(item, ".html") &&
+                            push!(entries, (group, basename(item), item, desc))
+                    end
                 end
             end
         end
+        entries_by_source[source] = entries
     end
 
     open(index_output, "w") do io
@@ -88,28 +69,46 @@ function demo_all(; index_output::AbstractString = joinpath(@__DIR__, "..", ".."
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BIFROST path-geometry demos</title>
+  <title>BIFROST demos</title>
   <style>
-    body { font-family: sans-serif; max-width: 800px; margin: 2em auto; color: #222; }
-    h1   { font-size: 1.5em; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }
+    body { font-family: sans-serif; max-width: 800px; margin: 2em auto; background: #111; color: #ddd; }
+    h1   { font-size: 1.5em; border-bottom: 1px solid #444; padding-bottom: 0.3em; }
+    h2   { font-size: 1.2em;  margin-top: 1.8em; color: #4db87a; }
+    h3   { font-size: 1.0em;  margin-top: 1.2em; color: #9bb; font-weight: normal; }
     ul   { padding-left: 1.2em; }
-    li   { margin: 1em 0; }
-    a    { font-weight: bold; color: #1a6; }
-    p.desc { margin: 0.3em 0 0 0; color: #555; font-size: 0.95em; }
+    li   { margin: 0.8em 0; }
+    a    { font-weight: bold; color: #4db87a; }
+    p.desc { margin: 0.3em 0 0 0; color: #999; font-size: 0.95em; }
   </style>
 </head>
 <body>
-  <h1>BIFROST path-geometry demos</h1>
-  <ul>""")
-        for (title, path, desc) in entries
-            println(io, "    <li>")
-            println(io, "      <a href=\"$(path)\">$(title)</a>")
-            println(io, "      <p class=\"desc\">$(desc)</p>")
-            println(io, "    </li>")
+  <h1>BIFROST demos</h1>""")
+        for (source, heading, _index, group_titles) in _RUNDEMOS_SOURCES
+            entries = entries_by_source[source]
+            isempty(entries) && continue
+            println(io, "  <h2>$(heading)</h2>")
+            # Collect this source's groups in insertion order.
+            seen_groups = String[]
+            for (g, _, _, _) in entries
+                g in seen_groups || push!(seen_groups, g)
+            end
+            for g in seen_groups
+                if !isempty(g)
+                    heading2 = group_titles isa Dict ? get(group_titles, g, g) : g
+                    println(io, "  <h3>$(heading2)</h3>")
+                end
+                println(io, "  <ul>")
+                for (eg, title, path, desc) in entries
+                    eg == g || continue
+                    println(io, "    <li>")
+                    println(io, "      <a href=\"$(path)\">$(title)</a>")
+                    println(io, "      <p class=\"desc\">$(desc)</p>")
+                    println(io, "    </li>")
+                end
+                println(io, "  </ul>")
+            end
         end
-        println(io, """  </ul>
-</body>
-</html>""")
+        println(io, "</body>\n</html>")
     end
 
     println("Wrote demo index to: ", index_output)
