@@ -52,6 +52,8 @@ for brittonlab/stablepoint
       Project.toml
       ```
 
+- [ ] Eventually, web-based documentation like that of NumPy. A quick search suggests Documenter.jl exists for this purpose and can automatically generate web-based documentation using GitHub Actions, though I suspect we might want to write some of our own.
+
 
 #################
 #### TESTING ####
