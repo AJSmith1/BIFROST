@@ -226,7 +226,7 @@ function sellmeier_coefficients(material::AbstractTemperatureDependentSellmeier,
     return map(term -> evaluate(term, T), sellmeier_terms(material))
 end
 
-function fluorine_corrected_sellmeier_coefficients(glass::FluorinatedSilicaGlass, T_K)
+function sellmeier_coefficients(glass::FluorinatedSilicaGlass, T_K)
     silica_coeffs = sellmeier_coefficients(PURE_SILICA, T_K)
     x_f = glass.x_f
     return ntuple(i -> begin
@@ -317,12 +317,12 @@ function refractive_index(::WithDerivative, glass::GermaniaSilicaGlass, λ, T_K)
 end
 
 function refractive_index(::ValueOnly, glass::FluorinatedSilicaGlass, λ, T_K)
-    coeffs = fluorine_corrected_sellmeier_coefficients(glass, T_K)
+    coeffs = sellmeier_coefficients(glass, T_K)
     return sellmeier_index_from_coefficients(coeffs, λ)
 end
 
 function refractive_index(::WithDerivative, glass::FluorinatedSilicaGlass, λ, T_K)
-    coeffs = fluorine_corrected_sellmeier_coefficients(glass, T_K)
+    coeffs = sellmeier_coefficients(glass, T_K)
     return sellmeier_index_from_coefficients_dω(coeffs, λ)
 end
 
