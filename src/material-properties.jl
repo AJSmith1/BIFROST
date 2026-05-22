@@ -25,7 +25,6 @@ cte_value = cte(glass, T_K)
 """
 
 abstract type AbstractMaterial end
-abstract type AbstractTemperatureDependentSellmeier <: AbstractMaterial end
 abstract type AbstractBinarySilicaGlass <: AbstractMaterial end
 abstract type SpectralStyle end
 
@@ -83,12 +82,12 @@ end
 
 evaluate(term::SellmeierCorrectionTerm, molar_fraction) = (term.ΔB_law(molar_fraction), term.ΔC_law(molar_fraction))
 
-struct  
-    terms::NTuple{3, SellmeierTerm}
+struct SiO2 <: AbstractMaterial
+    sellmeier_terms::NTuple{3, SellmeierTerm}
 end
 
 struct GeO2 <: AbstractMaterial
-    reference_terms::NTuple{3, SellmeierTerm}
+    sellmeier_terms::NTuple{3, SellmeierTerm}
 end
 
 struct GermaniaSilicaGlass <: AbstractBinarySilicaGlass
@@ -168,9 +167,6 @@ const GERMANIA_YOUNGS_MODULUS = 45.5e9
 const SILICA_N2 = 2.2e-20
 const GERMANIA_N2 = 4.6e-20
 
-sellmeier_terms(material::SiO2) = material.terms
-reference_sellmeier_terms(material::GeO2) = material.reference_terms
-
 # TODO Banner... validate ranges
 const MIN_VALID_TEMPERATURE_K = 243.0
 const MAX_VALID_TEMPERATURE_K = 373.0
@@ -212,8 +208,10 @@ function validate_model_wavelength(λ)
     return λ
 end
 
+# used for AbstractBinarySilicaGlass 
 interpolate_scalar(a, b, x) = (one(x) - x) * a + x * b
 
+# used for photoelastic_constants
 function interpolate_pair(a::Tuple, b::Tuple, x)
     return (
         interpolate_scalar(a[1], b[1], x),
@@ -221,9 +219,9 @@ function interpolate_pair(a::Tuple, b::Tuple, x)
     )
 end
 
-function sellmeier_coefficients(material::AbstractTemperatureDependentSellmeier, T_K)
+function sellmeier_coefficients(material::SiO2, T_K)
     T = validate_model_temperature(T_K)
-    return map(term -> evaluate(term, T), sellmeier_terms(material))
+    return map(term -> evaluate(term, T), material.sellmeier_terms)
 end
 
 function sellmeier_coefficients(glass::FluorinatedSilicaGlass, T_K)
@@ -273,14 +271,14 @@ end
 
 function reference_refractive_index(material::GeO2, λ, T_K)
     T = validate_model_temperature(T_K)
-    base_coeffs = map(term -> evaluate(term, T), reference_sellmeier_terms(material))
+    base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
     n_ref = sellmeier_index_from_coefficients(base_coeffs, λ)
     return n_ref + thermo_optic_index_shift(material, T)
 end
 
 function reference_refractive_index(::WithDerivative, material::GeO2, λ, T_K)
     T = validate_model_temperature(T_K)
-    base_coeffs = map(term -> evaluate(term, T), reference_sellmeier_terms(material))
+    base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
     base = sellmeier_index_from_coefficients_dω(base_coeffs, λ)
     return SpectralResponse(base.value + thermo_optic_index_shift(material, T), base.dω)
 end
