@@ -41,10 +41,7 @@ const SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
 
 struct TemperaturePolynomial
     coeffs::NTuple{5, Float64}
-end
-
-function TemperaturePolynomial(coeffs::NTuple{5, <:Real})
-    return TemperaturePolynomial(map(Float64, coeffs))
+    TemperaturePolynomial(coeffs::NTuple{5, <:Real}) = new(map(Float64, coeffs))
 end
 
 function (poly::TemperaturePolynomial)(T_K)
@@ -59,17 +56,17 @@ end
 
 struct ConstantLaw
     value::Float64
+    ConstantLaw(value::Real) = new(Float64(value))
 end
 
-ConstantLaw(value::Real) = ConstantLaw(Float64(value))
 (law::ConstantLaw)(x) = law.value * one(x)
 
 struct QuadraticMolarLaw
     quadratic::Float64
     linear::Float64
+    QuadraticMolarLaw(quadratic::Real, linear::Real) = new(Float64(quadratic), Float64(linear))
 end
 
-QuadraticMolarLaw(quadratic::Real, linear::Real) = QuadraticMolarLaw(Float64(quadratic), Float64(linear))
 (law::QuadraticMolarLaw)(x) = law.quadratic * x^2 + law.linear * x
 
 struct SellmeierTerm{TB, TC}
@@ -86,7 +83,7 @@ end
 
 evaluate(term::SellmeierCorrectionTerm, molar_fraction) = (term.ΔB_law(molar_fraction), term.ΔC_law(molar_fraction))
 
-struct SiO2 <: AbstractTemperatureDependentSellmeier
+struct  
     terms::NTuple{3, SellmeierTerm}
 end
 
