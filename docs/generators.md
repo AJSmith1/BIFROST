@@ -32,6 +32,10 @@ $$ \epsilon = \bar{\epsilon} + i\epsilon_c \left( \begin{array}{cc} 0 & -1 \\ 1 
 
 Here $\bar{\epsilon} = \bar{n}^2$ is the average permittivity, $\epsilon_c$ is the circular birefringence, and $\epsilon_i$ is the intrinsic linear birefringence, which is rotating with the spinning of the fiber at spin rate $\xi = 2\pi/L_s$, with $L_s$ the spin pitch.
 
-This is a only starting point because the choice of the $N,B$ frame doesn't really mean anything. Without the curvature of bending, the direction of the normal vector is arbitrary. In this case it is evidently set by the fact that the first component of the Jones vector here is along the slow axis and the second component is along the fast axis. That's a loose constraint because we sort of don't care about these overall rotations for our problems where we'll be sending in light of all polarizations. 
+This is a only starting point because the choice of the $N,B$ frame doesn't really mean anything. Without the curvature of bending, the direction of the normal vector is arbitrary. In this case, the normal vector direction is evidently set by the fact that the first component of the Jones vector here is along the slow axis and the second component is along the fast axis. Thus the normal vector is set along the slow axis at $z=0$ (and doesn't rotate with the spinning). That's a loose constraint because we sort of don't care about these overall rotations for our problems where we'll be sending in light of all polarizations. 
 
-Where things get really complicated is when we introduce bending, because now we have to keep track of the linear birefringence direction and the spinning relative to the bend plane. **To be continued...**
+Where things get really complicated is when we introduce bending, because now we have to keep track of the linear birefringence direction and the spinning relative to the bend plane, and the curvature means the normal vector is rotating for actual physical reasons. **To be continued...**
+
+If there were no spinning, then we would say 
+
+$$ \epsilon = \bar{\epsilon} + i\epsilon_c \left( \begin{array}{cc} 0 & -1 \\ 1 & 0 \end{array} \right) + \epsilon_i \left( \begin{array}{cc} 1 & 0 \\ 0 & -1 \end{array} \right). $$
