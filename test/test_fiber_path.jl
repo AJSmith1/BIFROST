@@ -9,7 +9,7 @@ const TANGENT_ATOL = 5e-13
 const SAMPLE_COUNT = 8001
 
 function test_cross_section()
-    return FiberCrossSection(
+    return StepIndexCrossSection(
         GermaniaSilicaGlass(0.036),
         GermaniaSilicaGlass(0.0),
         8.2e-6,
@@ -292,8 +292,8 @@ end
         straight!(spec; length = 0.8)
         fiber = Fiber(build(spec); cross_section = xs)
 
-        @test generator_K(fiber, 1550e-9)(0.4) ≈ zeros(ComplexF64, 2, 2) atol = 1e-14
-        @test generator_Kω(fiber, 1550e-9)(0.4) ≈ zeros(ComplexF64, 2, 2) atol = 1e-14
+        @test generator_K(fiber, fiber.cross_section, 1550e-9)(0.4) ≈ zeros(ComplexF64, 2, 2) atol = 1e-14
+        @test generator_Kω(fiber, fiber.cross_section, 1550e-9)(0.4) ≈ zeros(ComplexF64, 2, 2) atol = 1e-14
     end
 
     @testset "T-PHYSICS: circular bend uses bending_birefringence" begin
@@ -303,7 +303,7 @@ end
         spec = PathSpecBuilder()
         bend!(spec; radius = R, angle = π / 3)
         fiber = Fiber(build(spec); cross_section = xs, T_ref_K = T)
-        K = generator_K(fiber, λ)(0.5 * fiber.s_end)
+        K = generator_K(fiber, fiber.cross_section, λ)(0.5 * fiber.s_end)
         Δβ = bending_birefringence(xs, λ, T; bend_radius_m = R)
 
         @test K[1, 1] ≈ 0.5im * Δβ atol = 1e-12

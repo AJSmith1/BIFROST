@@ -63,6 +63,17 @@ module FiberCS
     using LinearAlgebra
     using ..MaterialProperties
     include("fiber/fiber-cross-section.jl")
+
+    # Dynamically discover and load all materials from the materials/ directory
+    _cross_sections_dir = joinpath(@__DIR__, "fiber-cross-sections")
+    if isdir(_cross_sections_dir)
+        for cross_section_file in sort(readdir(_cross_sections_dir))
+            if endswith(cross_section_file, ".jl")
+                include(joinpath(_cross_sections_dir, cross_section_file))
+            end
+        end
+    end
+
     import ..Bifrost: _export_public!
     _export_public!(@__MODULE__)
 end

@@ -70,6 +70,16 @@ function bend_components(path::PathSpecCached, s::Real)
     return (kx = κ, ky = z, k2 = κ * κ)
 end
 
+# TODO: twist refactor — material_twist is currently a stub; restore once the
+# per-segment-meta twist subsystem lands.
+path_twist_rate(path::PathSpecCached, s::Real) = geometric_torsion(path, s) + material_twist(path, s)
+
+#################################################
+#
+# Generic Fiber struct
+#
+#################################################
+
 struct Fiber{P,T,S}
     path::P
     cross_section::FiberCrossSection
@@ -94,17 +104,48 @@ function Fiber(
     )
 end
 
-# TODO: twist refactor — material_twist is currently a stub; restore once the
-# per-segment-meta twist subsystem lands.
-path_twist_rate(path::PathSpecCached, s::Real) = geometric_torsion(path, s) + material_twist(path, s)
-
+# Generic fiber methods
 fiber_path(f::Fiber) = f.path
 
-# ----------------------------
-# Generator K(s) and Curvature Kω(s)
-# ----------------------------
+fiber_breakpoints(f::Fiber) = breakpoints(f.path)
 
 zero_generator() = zeros(ComplexF64, 2, 2)
+
+# These methods should be overriden by any specific cross section type
+function generator_K(f::Fiber, xs::FiberCrossSection, λ_m::Real)
+    throw(NotImplementedError("generator_K not implemented for $(typeof(f)) and $(typeof(xs))"))
+end
+function generator_Kω(f::Fiber, xs::FiberCrossSection, λ_m::Real)
+    throw(NotImplementedError("generator_Kω not implemented for $(typeof(f)) and $(typeof(xs))"))
+end
+
+#################################################
+#
+# Fiber diagnostics for plotting
+#
+#################################################
+
+function bend_geometry(f::Fiber, s::Real)
+    curv = bend_components(f.path, s)
+    kx = curv.kx
+    ky = curv.ky
+    k2 = kx * kx + ky * ky
+    if k2 == 0.0
+        return (Rb = Inf, theta_b = 0.0, kx = 0.0, ky = 0.0, k2 = 0.0)
+    end
+
+    return (Rb = inv(sqrt(k2)), theta_b = atan(ky, kx), kx = kx, ky = ky, k2 = k2)
+end
+
+function twist_rate(f::Fiber, s::Real)
+    return path_twist_rate(f.path, s)
+end
+
+#################################################
+#
+# Step-index fiber generator methods
+#
+#################################################
 
 function bend_generator_K(f::Fiber, s::Real, λ_m::Real)
     curv = bend_components(f.path, s)
@@ -172,49 +213,30 @@ function twist_generator_Kω(f::Fiber, s::Real, λ_m::Real)
     ]
 end
 
-fiber_breakpoints(f::Fiber) = breakpoints(f.path)
-
-"""
-    generator_K(fiber, λ_m) -> (s -> 2×2 ComplexF64)
-
-Return a closure that evaluates the local Jones generator `K(s)` at the given
-operating wavelength `λ_m` (metres). Temperature is `fiber.T_ref_K`.
-"""
-function generator_K(f::Fiber, λ_m::Real)
+function generator_K(f::Fiber, xs::StepIndexCrossSection, λ_m::Real)
     return function (s::Real)
         return bend_generator_K(f, s, λ_m) +
                twist_generator_K(f, s, λ_m)
     end
 end
 
-"""
-    generator_Kω(fiber, λ_m) -> (s -> 2×2 ComplexF64)
-
-Frequency-derivative counterpart of `generator_K`.
-"""
-function generator_Kω(f::Fiber, λ_m::Real)
+function generator_Kω(f::Fiber, xs::StepIndexCrossSection, λ_m::Real)
     return function (s::Real)
         return bend_generator_Kω(f, s, λ_m) +
                twist_generator_Kω(f, s, λ_m)
     end
 end
 
-# ----------------------------
-# Fiber diagnostics for plotting
-# ----------------------------
+#################################################
+#
+# Graded-index fiber generator methods
+#
+#################################################
 
-function bend_geometry(f::Fiber, s::Real)
-    curv = bend_components(f.path, s)
-    kx = curv.kx
-    ky = curv.ky
-    k2 = kx * kx + ky * ky
-    if k2 == 0.0
-        return (Rb = Inf, theta_b = 0.0, kx = 0.0, ky = 0.0, k2 = 0.0)
-    end
-
-    return (Rb = inv(sqrt(k2)), theta_b = atan(ky, kx), kx = kx, ky = ky, k2 = k2)
+function generator_K(f::Fiber, xs::GradedIndexCrossSection, λ_m::Real)
+    throw(NotImplementedError("generator_K not implemented for $(typeof(f)) and $(typeof(xs))"))
 end
 
-function twist_rate(f::Fiber, s::Real)
-    return path_twist_rate(f.path, s)
+function generator_Kω(f::Fiber, xs::GradedIndexCrossSection, λ_m::Real)
+    throw(NotImplementedError("generator_K not implemented for $(typeof(f)) and $(typeof(xs))"))
 end

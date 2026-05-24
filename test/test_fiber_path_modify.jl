@@ -7,7 +7,7 @@ using Bifrost
 # (so α_lin = SILICA_CTE) and a reference temperature.
 # -----------------------------------------------------------------------
 
-const _MODIFY_TEST_XS = FiberCrossSection(
+const _MODIFY_TEST_XS = StepIndexCrossSection(
     GermaniaSilicaGlass(0.036),
     GermaniaSilicaGlass(0.0),     # pure silica cladding → α_lin = SILICA_CTE
     8.2e-6,
