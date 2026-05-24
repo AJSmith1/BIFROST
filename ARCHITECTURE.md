@@ -16,6 +16,8 @@ This is a high-level schematic. Do not update it to reflect every file.
 │   ├── path-integral.jl             [11]
 │   ├── geometry                     [10]
 │   ├── fiber                        [12, 13, 14]
+│   ├── fiber-cross-sections         [21]
+│   ├── materials                    [22]
 │   └── nonlinear                    [16]
 ├── test                             [19]
 │   ├── human                        [15]
@@ -41,6 +43,8 @@ This is a high-level schematic. Do not update it to reflect every file.
 - [17] TODO list for humans. Starting TODO items requires user authorization.
 - [19] Julia tests.
 - [20] Output of demo methods and generated visual artifacts.
+- [21] Local birefringence responses of different fiber types (e.g. step-index, graded-index).
+- [22] Material properties for different kinds of materials (e.g. silica, germania-doped silica).
 
 The folder marked `[L]` contains legacy files for the old Python implementation. Do not
 read them unless a specific workflow requires it. They are authoritative for
@@ -62,7 +66,7 @@ These files are intentionally useful on their own:
 
 | File | Standalone role |
 | --- | --- |
-| `material-properties.jl` | Material constants and spectra; no path or fiber geometry. |
+| `material-properties.jl` | Together with files in materials directory, provides material constants and spectra; no path or fiber geometry. |
 | `path-geometry.jl` | Three-dimensional path construction and geometric queries; no optics. |
 | `path-integral.jl` | Adaptive propagation for callable `K(s)` and `Kω(s)` generators. |
 
@@ -70,7 +74,7 @@ The fiber-specific layers combine those pieces:
 
 | File | How it extends the standalone pieces |
 | --- | --- |
-| `fiber-cross-section.jl` | Adds step-index fiber optics and birefringence responses. |
+| `fiber-cross-section.jl` | Together with files in fiber-cross-sections directory, adds step-index fiber optics and birefringence responses. |
 | `fiber-path.jl` | Binds path geometry to a cross section and assembles bend/twist `K` and `Kω`. |
 
 ## Layered Design
@@ -83,12 +87,12 @@ The fiber-specific layers combine those pieces:
    - Resolves material twist metadata into path-coordinate twist runs.
    - Resolves `JumpBy` and `JumpTo` into G2 quintic connectors.
 
-1. **Material layer** (`material-properties.jl`)
+1. **Material layer** (`material-properties.jl` and `materials/`)
 
    - Encodes intrinsic optical material properties.
    - Provides spectral responses and derivatives needed by DGD calculations.
 
-2. **Cross-section layer** (`fiber-cross-section.jl`)
+2. **Cross-section layer** (`fiber-cross-section.jl` and `materials/`)
 
    - Encodes transverse step-index fiber geometry.
    - Converts material properties into guided-index, dispersion, nonlinearity,
@@ -166,7 +170,7 @@ The fiber-specific layers combine those pieces:
 - Add new per-segment annotations by extending the `AbstractMeta` vocabulary and
   keeping interpretation in the consuming layer.
 - Add new fiber-level birefringence mechanisms by extending generator assembly
-  in `fiber-path.jl` and adding guardrail tests first.
+  in `fiber-path.jl` and `fiber-cross-sections/` files and adding guardrail tests first.
 - Keep solver changes in `path-integral.jl` deliberate; step controller, error
   metric, and exponential formulas are core numerical contracts.
 - Preserve separation between lossless Jones propagation and any future

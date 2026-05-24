@@ -1,6 +1,12 @@
 """
-TODO: Add doc
-Not implemented yet!!!
+
+Local optical properties of a graded-index fiber cross section.
+
+This fiber cross-section type has not yet been cleanly implemented. The file serves only
+as a placeholder to show that other cross-section types can be included.
+
+{This file is a stub. You can help Wikipedia by expanding it.}
+
 """
 
 struct GradedIndexCrossSection{T<:Real} <: FiberCrossSection

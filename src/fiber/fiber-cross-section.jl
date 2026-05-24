@@ -1,38 +1,14 @@
 """
-Local optical properties of an ideal step-index fiber cross section.
+This file provides the FiberCrossSection abstract structure for containing
+specific cross section types in the fiber-cross-sections directory.
 
-This file intentionally models only quantities that are meaningful for a single
-transverse slice of fiber of infinitesimal length. It excludes any property
-that depends on fiber length, path through space, accumulated phase, or
-concatenation of segments.
+These files should intentionally model only quantities that are meaningful
+for a single transverse slice of fiber of infinitesimal length. They exclude
+any property that depends on fiber length, path through space, accumulated phase,
+or concatenation of segments.
 
-The baseline object is a circular step-index fiber cross section described by
-core/cladding materials and diameters. Perturbations such as core ellipticity,
-bending, axial tension, and twist are handled by separate functions with
-explicit arguments rather than stored on the type.
-
-NOTE: All the dω derivatives computed in this file are computed by ChatGPT-5.4 and have
-not been checked by a human.
-
-Example
--------
-fiber = FiberCrossSection(
-    GermaniaSilicaGlass(0.036),
-    GermaniaSilicaGlass(0.0),
-    8.2e-6,
-    125e-6;
-    manufacturer = "Corning",
-    model_number = "SMF-like"
-)
-
-λ = 1550e-9
-T = 297.15
-
-v = normalized_frequency(fiber, λ, T)
-β = propagation_constant(fiber, λ, T)
-Aeff = effective_mode_area(fiber, λ, T)
-Δβ_bend = bending_birefringence(fiber, λ, T; bend_radius_m = 0.03) +
-    axial_tension_birefringence(fiber, λ, T; bend_radius_m = 0.03, axial_tension_N = 0.5)
+This file also provides the BirefringenceResponse structure as well as some
+common validation methods.
 """
 
 #################################################
