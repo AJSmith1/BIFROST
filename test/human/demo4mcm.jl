@@ -58,7 +58,7 @@ end
 #   2. mcm-temperature-ptf-scatter.html — DLP vs temperature from a single
 #      MCM Particles run (T_nom=30°C ± 5°C), showing the ensemble scatter.
 
-const _MCM_DEMO_XS = FiberCrossSection(
+const _MCM_DEMO_XS = StepIndexCrossSection(
     GermaniaSilicaGlass(0.036),
     GermaniaSilicaGlass(0.0),
     8.2e-6,
