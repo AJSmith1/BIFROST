@@ -12,7 +12,7 @@ xs = FiberCrossSection(
 
 spec = PathSpecBuilder()
 straight!(spec; length = 0.5, meta = [Nickname("lead-in")])
-bend!(spec; radius = 0.05, angle = pi / 2, meta = [Nickname("90 deg bend")])
+bend!(spec; radius = 0.01, angle = pi / 2, meta = [Nickname("90 deg bend")])
 straight!(spec; length = 0.5, meta = [Nickname("lead-out")])
 
 path = build(spec)
@@ -24,11 +24,11 @@ println("J =")
 display(J)
 println("intervals = ", length(stats))
 
-plot_path = write_path_geometry_plot3d(
-    path,
-    path.spec.s_start,
-    path.s_end;
-    output = joinpath(@__DIR__, "..", "..", "output", "demo-smallest.html"),
-    title = "demo-smallest path",
-)
-println("Wrote path plot to: ", plot_path)
+# plot_path = write_path_geometry_plot3d(
+#     path,
+#     path.spec.s_start,
+#     path.s_end;
+#     output = joinpath(@__DIR__, "..", "..", "output", "demo-smallest.html"),
+#     title = "demo-smallest path",
+# )
+# println("Wrote path plot to: ", plot_path)

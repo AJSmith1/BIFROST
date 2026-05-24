@@ -28,6 +28,17 @@ module MaterialProperties
     using LinearAlgebra
     using Printf
     include("material-properties.jl")
+    
+    # Dynamically discover and load all materials from the materials/ directory
+    _materials_dir = joinpath(@__DIR__, "materials")
+    if isdir(_materials_dir)
+        for material_file in sort(readdir(_materials_dir))
+            if endswith(material_file, ".jl")
+                include(joinpath(_materials_dir, material_file))
+            end
+        end
+    end
+    
     import ..Bifrost: _export_public!
     _export_public!(@__MODULE__)
 end
