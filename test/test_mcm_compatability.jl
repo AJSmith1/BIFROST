@@ -64,10 +64,6 @@ end
 # ▓▓▓  fiber-cross-section.jl  ▓▓▓
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if !isdefined(Main, :FiberCrossSection)
-    include(joinpath(@__DIR__, "..", "src", "fiber", "fiber-cross-section.jl"))
-end
-
 @testset "MCM :: fiber-cross-section.jl" begin
     MonteCarloMeasurements.unsafe_comparisons(true)
     try
