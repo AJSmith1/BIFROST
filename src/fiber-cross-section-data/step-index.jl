@@ -42,31 +42,31 @@ struct StepIndexCrossSection{T<:Real} <: FiberCrossSection
     cladding_material::STEP_INDEX_GLASS
     core_diameter_m::T
     cladding_diameter_m::T
-end
 
-function StepIndexCrossSection(
-    core_material::STEP_INDEX_GLASS,
-    cladding_material::STEP_INDEX_GLASS,
-    core_diameter_m::Real,
-    cladding_diameter_m::Real;
-    manufacturer::Union{Nothing, AbstractString} = nothing,
-    model_number::Union{Nothing, AbstractString} = nothing
-)
-    core_diameter = validate_positive_length(core_diameter_m, "core diameter")
-    cladding_diameter = validate_positive_length(cladding_diameter_m, "cladding diameter")
-    core_diameter < cladding_diameter || throw(ArgumentError(
-        "core diameter must be smaller than cladding diameter"
-    ))
-
-    T = promote_type(typeof(core_diameter), typeof(cladding_diameter))
-    return StepIndexCrossSection{T}(
-        isnothing(manufacturer) ? nothing : String(manufacturer),
-        isnothing(model_number) ? nothing : String(model_number),
-        core_material,
-        cladding_material,
-        core_diameter,
-        cladding_diameter
+    function StepIndexCrossSection(
+        core_material::STEP_INDEX_GLASS,
+        cladding_material::STEP_INDEX_GLASS,
+        core_diameter_m::Real,
+        cladding_diameter_m::Real;
+        manufacturer::Union{Nothing, AbstractString} = nothing,
+        model_number::Union{Nothing, AbstractString} = nothing
     )
+        core_diameter = validate_positive_length(core_diameter_m, "core diameter")
+        cladding_diameter = validate_positive_length(cladding_diameter_m, "cladding diameter")
+        core_diameter < cladding_diameter || throw(ArgumentError(
+            "core diameter must be smaller than cladding diameter"
+        ))
+
+        T = promote_type(typeof(core_diameter), typeof(cladding_diameter))
+        new{T}(
+            isnothing(manufacturer) ? nothing : String(manufacturer),
+            isnothing(model_number) ? nothing : String(model_number),
+            core_material,
+            cladding_material,
+            core_diameter,
+            cladding_diameter
+        )
+    end
 end
 
 core_radius(fiber::StepIndexCrossSection) = fiber.core_diameter_m / 2
