@@ -30,7 +30,7 @@ module MaterialProperties
     include("material-properties.jl")
     
     # Dynamically discover and load all materials from the materials/ directory
-    _materials_dir = joinpath(@__DIR__, "materials")
+    _materials_dir = joinpath(@__DIR__, "material-data")
     if isdir(_materials_dir)
         for material_file in sort(readdir(_materials_dir))
             if endswith(material_file, ".jl")
@@ -65,7 +65,7 @@ module FiberCS
     include("fiber/fiber-cross-section.jl")
 
     # Dynamically discover and load all materials from the materials/ directory
-    _cross_sections_dir = joinpath(@__DIR__, "fiber-cross-sections")
+    _cross_sections_dir = joinpath(@__DIR__, "fiber-cross-section-data")
     if isdir(_cross_sections_dir)
         for cross_section_file in sort(readdir(_cross_sections_dir))
             if endswith(cross_section_file, ".jl")
