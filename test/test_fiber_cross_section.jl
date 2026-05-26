@@ -134,8 +134,8 @@ function finite_difference_dω(f, λ_meters; dλ = 1e-12)
 end
 
 const SMF_LIKE_FIBER = StepIndexCrossSection(
-    GermaniaSilicaGlass(0.036),
-    GermaniaSilicaGlass(0.0),
+    SilicaGermaniaGlass(0.036),
+    SilicaGermaniaGlass(0.0),
     8.2e-6,
     125e-6;
     manufacturer = "Corning",
@@ -252,14 +252,14 @@ end
 
     unguided = StepIndexCrossSection(
         FluorinatedSilicaGlass(0.005),
-        GermaniaSilicaGlass(0.0),
+        SilicaGermaniaGlass(0.0),
         8.2e-6,
         125e-6
     )
     @test_throws ArgumentError normalized_frequency(unguided, λ, T)
 
     fluorinated_cladding = StepIndexCrossSection(
-        GermaniaSilicaGlass(0.036),
+        SilicaGermaniaGlass(0.036),
         FluorinatedSilicaGlass(0.005),
         8.2e-6,
         125e-6

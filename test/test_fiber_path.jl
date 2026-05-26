@@ -10,8 +10,8 @@ const SAMPLE_COUNT = 8001
 
 function test_cross_section()
     return StepIndexCrossSection(
-        GermaniaSilicaGlass(0.036),
-        GermaniaSilicaGlass(0.0),
+        SilicaGermaniaGlass(0.036),
+        SilicaGermaniaGlass(0.0),
         8.2e-6,
         125e-6
     )

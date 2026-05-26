@@ -12,8 +12,8 @@ not been checked by a human.
 Example
 -------
 fiber = StepIndexCrossSection(
-    GermaniaSilicaGlass(0.036),
-    GermaniaSilicaGlass(0.0),
+    SilicaGermaniaGlass(0.036),
+    SilicaGermaniaGlass(0.0),
     8.2e-6,
     125e-6;
     manufacturer = "Corning",
@@ -30,7 +30,7 @@ Aeff = effective_mode_area(fiber, λ, T)
     axial_tension_birefringence(fiber, λ, T; bend_radius_m = 0.03, axial_tension_N = 0.5)
 """
 
-const STEP_INDEX_GLASS = Union{GermaniaSilicaGlass, FluorinatedSilicaGlass}
+const STEP_INDEX_GLASS = Union{SilicaGermaniaGlass, FluorinatedSilicaGlass}
 const LP11_CUTOFF_V = 2.405
 const MARCUSE_V_MIN = 1.2
 const MARCUSE_V_MAX = 2.4

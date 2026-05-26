@@ -404,8 +404,8 @@ end
 #      length-constrained resolve).
 
 const _DEMO2_MODIFY_XS = StepIndexCrossSection(
-    GermaniaSilicaGlass(0.036),
-    GermaniaSilicaGlass(0.0),     # pure silica cladding → α_lin = SILICA_CTE
+    SilicaGermaniaGlass(0.036),
+    SilicaGermaniaGlass(0.0),     # pure silica cladding → α_lin = SILICA_CTE
     8.2e-6,
     125e-6,
 )

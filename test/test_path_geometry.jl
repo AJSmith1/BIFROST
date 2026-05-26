@@ -625,7 +625,7 @@ end
 end
 
 @testset "per-segment meta — shrinkage preserves meta" begin
-    xs = StepIndexCrossSection(GermaniaSilicaGlass(0.036), GermaniaSilicaGlass(0.0),
+    xs = StepIndexCrossSection(SilicaGermaniaGlass(0.036), SilicaGermaniaGlass(0.0),
                            8.2e-6, 125e-6)
 
     spec = PathSpecBuilder()

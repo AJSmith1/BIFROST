@@ -5,8 +5,8 @@ using Bifrost.Plots.PlotRuntime
 
 
 const DEMO_FIBER_CROSS_SECTION = StepIndexCrossSection(
-    GermaniaSilicaGlass(0.036),
-    GermaniaSilicaGlass(0.0),
+    SilicaGermaniaGlass(0.036),
+    SilicaGermaniaGlass(0.0),
     8.2e-6,
     125e-6;
     manufacturer = "Corning",

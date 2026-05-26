@@ -109,13 +109,13 @@ end
     @test quad(0.25) ≈ 0.0
     @test quad(1.0) == 1.5
 
-    @test GermaniaSilicaGlass(0.0).x_ge == 0.0
-    @test GermaniaSilicaGlass(1.0).x_ge == 1.0
+    @test SilicaGermaniaGlass(0.0).x_ge == 0.0
+    @test SilicaGermaniaGlass(1.0).x_ge == 1.0
     @test FluorinatedSilicaGlass(0.0).x_f == 0.0
     @test FluorinatedSilicaGlass(1.0).x_f == 1.0
 
-    @test_throws ArgumentError GermaniaSilicaGlass(-1e-6)
-    @test_throws ArgumentError GermaniaSilicaGlass(1.000001)
+    @test_throws ArgumentError SilicaGermaniaGlass(-1e-6)
+    @test_throws ArgumentError SilicaGermaniaGlass(1.000001)
     @test_throws ArgumentError FluorinatedSilicaGlass(-1e-6)
     @test_throws ArgumentError FluorinatedSilicaGlass(1.000001)
 end
@@ -169,12 +169,12 @@ end
     @test nonlinear_refractive_index(germania, 1550e-9, 297.15) == GERMANIA_N2
 end
 
-@testset "GermaniaSilicaGlass" begin
+@testset "SilicaGermaniaGlass" begin
     λ = 1550e-9
     T = 297.15
 
-    pure_silica_glass = GermaniaSilicaGlass(0.0)
-    pure_germania_glass = GermaniaSilicaGlass(1.0)
+    pure_silica_glass = SilicaGermaniaGlass(0.0)
+    pure_germania_glass = SilicaGermaniaGlass(1.0)
     @test refractive_index(pure_silica_glass, λ, T) == refractive_index(SiO2(), λ, T)
     @test refractive_index(pure_germania_glass, λ, T) == refractive_index(GeO2(), λ, T)
     @test cte(pure_silica_glass, T) == cte(SiO2(), T)
@@ -191,7 +191,7 @@ end
     @test nonlinear_refractive_index(pure_germania_glass, λ, T) == nonlinear_refractive_index(GeO2(), λ, T)
 
     for x in (0.036, 0.25)
-        glass = GermaniaSilicaGlass(x)
+        glass = SilicaGermaniaGlass(x)
         n_expected = reference_scalar_mix(reference_silica_index(λ, T), reference_germania_index(λ, T), x)
         @test refractive_index(glass, λ, T) ≈ n_expected atol = 1e-12 rtol = 1e-12
         @test cte(glass, T) == reference_scalar_mix(SILICA_CTE, GERMANIA_CTE, x)
@@ -202,14 +202,14 @@ end
         @test nonlinear_refractive_index(glass, λ, T) == reference_scalar_mix(SILICA_N2, GERMANIA_N2, x)
     end
 
-    glass0 = GermaniaSilicaGlass(0.0)
-    glass_small = GermaniaSilicaGlass(0.036)
-    glass_large = GermaniaSilicaGlass(1.0)
+    glass0 = SilicaGermaniaGlass(0.0)
+    glass_small = SilicaGermaniaGlass(0.036)
+    glass_large = SilicaGermaniaGlass(1.0)
     @test refractive_index(glass_small, λ, T) > refractive_index(glass0, λ, T)
     @test cte(glass0, T) < cte(glass_small, T) < cte(glass_large, T)
     @test poisson_ratio(glass0, T) < poisson_ratio(glass_small, T) < poisson_ratio(glass_large, T)
 
-    p11, p12 = photoelastic_constants(GermaniaSilicaGlass(0.036), T)
+    p11, p12 = photoelastic_constants(SilicaGermaniaGlass(0.036), T)
     @test p11 isa Float64
     @test p12 isa Float64
     @test p11 < p12
@@ -249,7 +249,7 @@ end
 @testset "Validity guards" begin
     silica = SiO2()
     germania = GeO2()
-    ge_glass = GermaniaSilicaGlass(0.036)
+    ge_glass = SilicaGermaniaGlass(0.036)
     f_glass = FluorinatedSilicaGlass(0.01)
 
     for T in (243.0, 373.0)
@@ -294,7 +294,7 @@ end
     materials = (
         SiO2(),
         GeO2(),
-        GermaniaSilicaGlass(0.036),
+        SilicaGermaniaGlass(0.036),
         FluorinatedSilicaGlass(0.01)
     )
 
