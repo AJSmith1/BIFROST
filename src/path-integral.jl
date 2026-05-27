@@ -599,7 +599,7 @@ function propagate_fiber(
     kwargs...
 )
     return propagate_piecewise(
-        generator_K(f, λ_m),
+        generator_K(f, f.cross_section, λ_m),
         fiber_breakpoints(f);
         jumps = jumps,
         kwargs...,
@@ -678,8 +678,8 @@ function propagate_fiber_sensitivity(
     kwargs...
 )
     return propagate_piecewise_sensitivity(
-        generator_K(f, λ_m),
-        generator_Kω(f, λ_m),
+        generator_K(f, f.cross_section, λ_m),
+        generator_Kω(f, f.cross_section, λ_m),
         fiber_breakpoints(f);
         jumps = jumps,
         jump_omegas = jump_omegas,

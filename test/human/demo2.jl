@@ -403,9 +403,9 @@ end
 #      `τ·baseline` while the destination stays pinned (TD001
 #      length-constrained resolve).
 
-const _DEMO2_MODIFY_XS = FiberCrossSection(
-    GermaniaSilicaGlass(0.036),
-    GermaniaSilicaGlass(0.0),     # pure silica cladding → α_lin = SILICA_CTE
+const _DEMO2_MODIFY_XS = StepIndexCrossSection(
+    SilicaGermaniaGlass(0.036),
+    SilicaGermaniaGlass(0.0),     # pure silica cladding → α_lin = SILICA_CTE
     8.2e-6,
     125e-6,
 )
