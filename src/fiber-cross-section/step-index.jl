@@ -362,14 +362,14 @@ function cutoff_wavelength(
     λ_hi = validate_positive_length(λ_max, "λ_max")
     λ_lo < λ_hi || throw(ArgumentError("λ_min must be smaller than λ_max"))
 
-    f_lo = normalized_frequency(fiber, λ_lo, T_K) - LP11_CUTOFF_V
-    f_hi = normalized_frequency(fiber, λ_hi, T_K) - LP11_CUTOFF_V
+    V_lo = normalized_frequency(fiber, λ_lo, T_K) - LP11_CUTOFF_V
+    V_hi = normalized_frequency(fiber, λ_hi, T_K) - LP11_CUTOFF_V
 
-    if f_lo == 0.0
+    if V_lo == 0.0
         return λ_lo
-    elseif f_hi == 0.0
+    elseif V_hi == 0.0
         return λ_hi
-    elseif signbit(f_lo) == signbit(f_hi)
+    elseif signbit(V_lo) == signbit(V_hi)
         throw(ArgumentError(
             "cutoff wavelength is not bracketed in [$(λ_lo), $(λ_hi)] m"
         ))
@@ -377,16 +377,16 @@ function cutoff_wavelength(
 
     a = λ_lo
     b = λ_hi
-    fa = f_lo
+    Va = V_lo
 
     for _ in 1:maxiter
         mid = (a + b) / 2
-        fm = normalized_frequency(fiber, mid, T_K) - LP11_CUTOFF_V
-        if abs(fm) <= atol || (b - a) / 2 <= atol
+        Vm = normalized_frequency(fiber, mid, T_K) - LP11_CUTOFF_V
+        if abs(Vm) <= atol || (b - a) / 2 <= atol
             return mid
-        elseif signbit(fm) == signbit(fa)
+        elseif signbit(Vm) == signbit(Va)
             a = mid
-            fa = fm
+            Va = Vm
         else
             b = mid
         end
@@ -411,11 +411,12 @@ function core_noncircularity_dω(style::SpectralStyle, fiber::StepIndexCrossSect
     χ = one(terms.n_core) - terms.n_clad^2 / terms.n_core^2
     dχ_dω = -2 * terms.n_clad * terms.dn_clad_dω / terms.n_core^2 +
             2 * terms.n_clad^2 * terms.dn_core_dω / terms.n_core^3
-    h = 4 * log(terms.V)^3 / (terms.V^3 * (one(terms.V) + log(terms.V)))
-    h_prime = h / terms.V * (3 / log(terms.V) - 3 - inv(one(terms.V) + log(terms.V)))
+    V = terms.V
+    h = 4 * log(V)^3 / (V^3 * (one(V) + log(V)))
+    h_prime = h / V * (3 / log(V) - 3 - inv(one(V) + log(V)))
     prefactor = eccentricity_squared(ε; signed = true) / terms.core_radius
-    Δβ = prefactor * χ^(3 / 2) * h
-    dω = prefactor * ((3 / 2) * sqrt(χ) * dχ_dω * h + χ^(3 / 2) * h_prime * terms.dV_dω)
+    Δβ = prefactor * (2*χ)^(3 / 2) * h
+    dω = prefactor * ((3 / 2) * sqrt(2*χ) * dχ_dω * h + (2*χ)^(3 / 2) * h_prime * terms.dV_dω)
     return BirefringenceResponse(Δβ, dω)
 end
 
