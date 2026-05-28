@@ -2,7 +2,6 @@ name = "Bifrost"
 uuid = "94b252b5-e259-4c09-a257-2d20bce7d594"
 authors = []
 version = "0.1.0"
-authors = []
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
