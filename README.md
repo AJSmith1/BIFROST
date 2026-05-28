@@ -70,7 +70,8 @@ metric is insensitive to physically irrelevant global Jones phase.
     └── .venv/          # python environment
     ```
 
-
+Bifrost is a julia module. Add it to source files with `using Bifrost`. Plotting functionality
+is segregated in a second module called `Bifrost.Plots`.
 
 
 ## Quick Start
@@ -84,32 +85,22 @@ julia --project=. test/runtests.jl
 Human-inspected demos live under `test/human/` and write standalone HTML
 artifacts under `output/`:
 
-```bash
-julia --project=. test/human/demo-smallest.jl
-julia --project=. test/human/demo1.jl
-julia --project=. test/human/demo2.jl
-julia --project=. test/human/demo3mcm.jl
-julia --project=. test/human/demo3benchmark.jl
-```
-
-Use `using Bifrost` from the project environment to load the Julia API.
-
 ## Building Blocks
 
 These files are intentionally useful on their own:
 
 | File | Standalone role |
 | --- | --- |
-| `src/material-properties.jl` | Material constants and spectra; no path or fiber geometry. |
-| `src/geometry/path-geometry.jl` | Three-dimensional path construction and geometric queries. |
-| `src/path-integral.jl` | Generic adaptive propagation for callable `K(s)` and `Kω(s)`. |
+| `material-properties.jl` | Together with files in materials directory, provides material constants and spectra; no path or fiber geometry. |
+| `path-geometry.jl` | Three-dimensional path construction and geometric queries; no optics. |
+| `path-integral.jl` | Adaptive propagation for callable `K(s)` and `Kω(s)` generators. |
 
-The fiber layers combine and specialize those pieces:
+The fiber-specific layers combine those pieces:
 
 | File | How it extends the standalone pieces |
 | --- | --- |
-| `src/fiber/fiber-cross-section.jl` | Step-index fiber optics and birefringence responses. |
-| `src/fiber/fiber-path.jl` | Binds path geometry to a cross section and assembles generators. |
+| `fiber-cross-section.jl` | Together with files in fiber-cross-sections directory, adds step-index fiber optics and birefringence responses. |
+| `fiber-path.jl` | Binds path geometry to a cross section and assembles bend/twist `K` and `Kω`. |
 
 ## Current Model
 
@@ -117,7 +108,7 @@ High-level authoring is path based:
 
 1. Build geometry with `PathSpecBuilder`.
 2. Freeze and place it with `build(...)`, producing a `PathSpecCached`.
-3. Bind that path to a `FiberCrossSection` with `Fiber(path; cross_section,
+3. Bind that path to a `FiberCrossSection` *subtype* with `Fiber(path; cross_section,
    T_ref_K)`.
 4. Propagate at a requested wavelength with `propagate_fiber(fiber; λ_m=...)`.
 
@@ -157,7 +148,7 @@ From the repository root, start Julia with `julia --project=.`:
 ```julia
 using Bifrost
 
-xs = FiberCrossSection(
+xs = StepIndexCrossSection(
     GermaniaSilicaGlass(0.036),
     GermaniaSilicaGlass(0.0),
     8.2e-6,
@@ -360,8 +351,8 @@ ordinary `Float64` cases.
 Several files are written to lift through
 `MonteCarloMeasurements.Particles`:
 
-- `src/material-properties.jl`
-- `src/fiber/fiber-cross-section.jl`
+- `src/material-properties.jl` and `materials/` files
+- `src/fiber/fiber-cross-section.jl` and `fiber-cross-sections/` files
 - `src/geometry/path-geometry.jl`
 - `src/fiber/fiber-path.jl`
 - `src/fiber/fiber-path-modify.jl`
@@ -437,11 +428,11 @@ outside the current model.
 
 ## File Overview
 
-- `src/material-properties.jl`: material refractive index, thermo-optic
-  behavior, CTE, and nonlinear index helpers.
-- `src/fiber/fiber-cross-section.jl`: step-index cross-section quantities,
-  guided index, dispersion, nonlinear coefficient, and perturbative
-  birefringence responses.
+- `src/material-properties.jl` and `src/materials/`: material refractive index,
+  thermo-optic behavior, CTE, and nonlinear index helpers.
+- `src/fiber/fiber-cross-section.jl` and `src/fiber-cross-sections/`: step-index
+  cross-section quantities, guided index, dispersion, nonlinear coefficient, and
+  perturbative birefringence responses.
 - `src/geometry/path-geometry.jl`: path authoring, placement, differential
   geometry, material twist resolution, sampling, and global path diagnostics.
 - `src/geometry/path-geometry-connector.jl`: quintic G2 connector used by

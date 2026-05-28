@@ -28,6 +28,12 @@ module MaterialProperties
     using LinearAlgebra
     using Printf
     include("material-properties.jl")
+    
+    include("material/silica.jl")
+    include("material/germania.jl")
+    include("material/silica-germania.jl")
+    include("material/silica-fluorinated.jl")
+    
     import ..Bifrost: _export_public!
     _export_public!(@__MODULE__)
 end
@@ -52,6 +58,10 @@ module FiberCS
     using LinearAlgebra
     using ..MaterialProperties
     include("fiber/fiber-cross-section.jl")
+
+    include("fiber-cross-section/step-index.jl")
+    include("fiber-cross-section/graded-index.jl")
+
     import ..Bifrost: _export_public!
     _export_public!(@__MODULE__)
 end
