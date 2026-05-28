@@ -308,6 +308,10 @@ function effective_mode_area(fiber::StepIndexCrossSection, λ, T_K)
     return π * w^2
 end
 
+# This is D_CD, the second derivative with respect to *wavelength*, often
+# used by engineers, -2πc/λ^2 * (d^2k/dω^2), often given in ps/(nm km) for fibers
+# Uses a numerical approximation of the second derivative of n_eff
+# Output in ps/(nm km)
 function chromatic_dispersion_parameter(
     fiber::StepIndexCrossSection,
     λ,
@@ -320,6 +324,9 @@ function chromatic_dispersion_parameter(
     return -λ / SPEED_OF_LIGHT_M_PER_S * (n_plus - 2 * n_center + n_minus) / dλ^2 * 1e6
 end
 
+# This is β_2 = d^2k/dω^2, the second derivative with respect to *angular frequency*
+# Often given in ps^2/km for optical fibers
+# Output is in ps^2/km
 function group_velocity_dispersion_parameter(
     fiber::StepIndexCrossSection,
     λ,
@@ -327,7 +334,7 @@ function group_velocity_dispersion_parameter(
     dλ = 0.1e-9
 )
     D_SI = chromatic_dispersion_parameter(fiber, λ, T_K; dλ = dλ) * 1e-6
-    return -(λ^2 / (2π * SPEED_OF_LIGHT_M_PER_S)) * D_SI
+    return -(λ^2 / (2π * SPEED_OF_LIGHT_M_PER_S)) * D_SI * 1e27
 end
 
 core_nonlinear_refractive_index(fiber::StepIndexCrossSection, λ, T_K) =
