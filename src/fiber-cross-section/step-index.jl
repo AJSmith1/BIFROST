@@ -404,6 +404,10 @@ function eccentricity_squared(axis_ratio; signed::Bool = false)
     return signed ? -value : value
 end
 
+# TODO: Determine signs on this answer
+#    PB: Right now axis_ratio is not fixed to any definition and neither is Δβ so it's unclear
+#    when the result should be negative. I think planned changes should just get the magnitude
+#    of the birefringence and then orient it appropriately when constructing the generator.
 function core_noncircularity_dω(style::SpectralStyle, fiber::StepIndexCrossSection, λ, T_K; axis_ratio)
     terms = mode_terms(style, fiber, λ, T_K)
     ε = validate_axis_ratio(axis_ratio)
