@@ -16,9 +16,8 @@ This is a high-level schematic. Do not update it to reflect every file.
 │   ├── path-integral.jl             [11]
 │   ├── geometry                     [10]
 │   ├── fiber                        [12, 13, 14]
-│   ├── fiber-cross-sections         [21]
-│   ├── materials                    [22]
-│   └── nonlinear                    [16]
+│   ├── nonlinear                    [16]
+│   └── wrapper.py                   [21]
 ├── test                             [19]
 │   ├── human                        [15]
 │   └── legacy-python                [4L]
@@ -30,8 +29,8 @@ This is a high-level schematic. Do not update it to reflect every file.
 - [3] Primary project overview and scientific context.
 - [4L] Legacy Python implementation for birefringence simulation.
 - [7] Documentation, research references, and source material.
-- [8] Active Julia source tree and solver architecture.
-- [9] Standalone material models and refractive-index behavior.
+- [8] Active source tree 
+****- [9] Standalone material models and refractive-index behavior.
 - [10] Standalone path construction and differential geometry.
 - [11] Generic adaptive propagation for callable Jones generators.
 - [12] Cross-sectional fiber optics and local birefringence responses.
@@ -43,8 +42,7 @@ This is a high-level schematic. Do not update it to reflect every file.
 - [17] TODO list for humans. Starting TODO items requires user authorization.
 - [19] Julia tests.
 - [20] Output of demo methods and generated visual artifacts.
-- [21] Local birefringence responses of different fiber types (e.g. step-index, graded-index).
-- [22] Material properties for different kinds of materials (e.g. silica, germania-doped silica).
+- [21] Repo-local Python shim for juliacall. 
 
 The folder marked `[L]` contains legacy files for the old Python implementation. Do not
 read them unless a specific workflow requires it. They are authoritative for

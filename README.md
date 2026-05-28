@@ -143,13 +143,7 @@ The operating wavelength is not stored on `Fiber`. It is supplied per query to
 
 ## Example
 
-The smallest runnable example is kept in `test/human/demo-smallest.jl`:
-
-```bash
-julia --project=. test/human/demo-smallest.jl
-```
-
-Its core setup is:
+From the repository root, start Julia with `julia --project=.`:
 
 ```julia
 using Bifrost
@@ -190,6 +184,37 @@ dgd = output_dgd(J, G)
 For Monte Carlo Measurements (MCM) paths, prefer `output_dgd_2x2(J, G)` over
 `output_dgd(J, G)` because it avoids `eigvals`.
 
+## Python Example
+
+The `wrapper.py` shim boots juliacall against this project and returns a
+tab-completable view of any Julia module. Names listed in `dir(Bf)` are exactly
+what that module `export`s — none of the ~1000 names a juliacall module
+otherwise inherits from `Base`. Julia names ending in `!` use the `_b` suffix.
+
+```python
+import wrapper
+
+Bf = wrapper.wrap("Bifrost")
+
+xs = Bf.FiberCrossSection(
+    Bf.GermaniaSilicaGlass(0.036),
+    Bf.GermaniaSilicaGlass(0.0),
+    8.2e-6,
+    125e-6,
+)
+
+spec = Bf.PathSpecBuilder()
+Bf.straight_b(spec, length=0.1)
+fiber = Bf.Fiber(Bf.build(spec), cross_section=xs)
+
+J, stats = Bf.propagate_fiber(fiber, λ_m=1550e-9, verbose=False)
+```
+
+For a fuller juliacall example, see
+[`docs/juliacall-demo.py`](docs/juliacall-demo.py) and its Julia-side module
+[`docs/juliacall-demo.jl`](docs/juliacall-demo.jl). To run python code in the uv environment use
+`uv run python docs/juliacall-demo.py`.
+
 ## Generator Formulation
 
 The original BIFROST-style sliced approach calculates
@@ -201,7 +226,7 @@ J_{\mathrm{total}}=\prod_i J_i,
 with matrix order matching the order light encounters along the fiber. That
 approach is simple, but it is difficult to attach a meaningful error bound when
 linear birefringence, twist, and other non-commuting terms vary along the path.
-
+ 
 The Julia implementation instead assembles a local generator:
 
 ```math
