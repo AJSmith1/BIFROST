@@ -66,17 +66,14 @@ def use_bifrost():
     )
 
     # `straight!` and `bend!` end in `!` (Julia mutator convention), which Python
-    # syntax can't spell directly — getattr is the standard juliacall escape. The
-    # `meta=` kwarg expects `AbstractVector{<:AbstractMeta}`; juliacall converts a
-    # Python list to `PyList{Any}` which fails the type constraint, so the demo
-    # omits per-segment Nicknames here.
+    # syntax can't spell directly — getattr is the standard juliacall escape.
     straight = getattr(Bf, "straight!")
     bend = getattr(Bf, "bend!")
 
     spec = Bf.PathSpecBuilder()
-    straight(spec, length=0.08)
-    bend(spec, radius=0.06, angle=math.pi / 2)
-    straight(spec, length=0.06)
+    straight(spec, length=0.08, meta=[Bf.Nickname("lead-in")])
+    bend(spec, radius=0.06, angle=math.pi / 2, meta=[Bf.Nickname("90 deg bend")])
+    straight(spec, length=0.06, meta=[Bf.Nickname("spacer")])
 
     path = Bf.build(spec)
     fiber = Bf.Fiber(path, cross_section=xs)
