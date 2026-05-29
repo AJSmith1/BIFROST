@@ -6,9 +6,6 @@ core/cladding materials and diameters. Perturbations such as core ellipticity,
 bending, axial tension, and twist are handled by separate functions with
 explicit arguments rather than stored on the type.
 
-NOTE: All the dω derivatives computed in this file are computed by ChatGPT-5.4 and have
-not been checked by a human.
-
 Example
 -------
 fiber = StepIndexCrossSection(
@@ -100,7 +97,7 @@ cladding_refractive_index(fiber::StepIndexCrossSection, λ, T_K) =
 
 #################################################
 #
-# Refractive Index
+# Base Quantities (needed for subsequent calculations)
 #
 #################################################
 
@@ -404,6 +401,12 @@ function eccentricity_squared(axis_ratio; signed::Bool = false)
     value = one(ε) - ε^2
     return signed ? -value : value
 end
+
+#################################################
+#
+# Birefringences
+#
+#################################################
 
 # TODO: Determine signs on this answer
 #    PB: Right now axis_ratio is not fixed to any definition and neither is Δβ so it's unclear
