@@ -4,7 +4,8 @@ description: >
   Create, revise, or audit inline documentation for Julia code following the Julia
   manual and local repository conventions. Use when working on Julia docstrings for
   modules, functions, methods, structs, abstract types, macros, callable objects,
-  examples, doctests, Documenter-friendly markdown, or documentation coverage reviews.
+  examples, doctests, Documenter-friendly markdown, passing a strict Documenter
+  `makedocs` build, or documentation coverage reviews.
 ---
 
 # Julia Docstrings
@@ -31,6 +32,9 @@ with Julia's documentation system.
    illustrative or depends on larger setup, do not mark it as a doctest.
 8. Preserve local line length and formatting. In BIFROST, use the formatter margin from
    `.JuliaFormatter.toml` unless a newer repo instruction overrides it.
+9. If the repo has a Documenter build (`docs/make.jl`, `Documenter` in `docs/Project.toml`,
+   or `@autodocs`/`@docs` blocks), run it and fix all strict errors before declaring the
+   docstrings compliant — see `references/documenter-compliance.md`.
 
 ## Style Rules
 
@@ -51,3 +55,8 @@ with Julia's documentation system.
 
 Load `references/julia-docstring-patterns.md` when writing more than a trivial
 one-sentence docstring, choosing a template, or auditing a file for documentation quality.
+
+Load `references/documenter-compliance.md` when the repository has a Documenter build, to
+make docstrings survive `makedocs` (strict): `@ref` hygiene, getting every docstring onto a
+page via `@autodocs`/`@docs`, the `checkdocs` coverage knob, and running the build as the
+authoritative check.
