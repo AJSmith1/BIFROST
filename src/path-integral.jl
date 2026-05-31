@@ -1,21 +1,23 @@
-# Code Overview:
-# - fiber-path.jl defines the fiber model, source specification, and breakpoint assembly.
-# - generator_K and generator_Kω assemble the local Jones dynamics.
-# - the numerical propagation stack consists of
-#     - exp_jones_generator
-#     - exp_midpoint_step
-#     - phase_insensitive_error
-#     - propagate_interval!
-#     - propagate_piecewise
-# - the DGD sensitivity stack consists of
-#     - exp_sensitivity_midpoint_step
-#     - sensitivity_phase_insensitive_error
-#     - propagate_interval_sensitivity!
-#     - propagate_piecewise_sensitivity
-#     - output_dgd
+# Lossless Jones-matrix propagation and DGD sensitivity integration.
 #
-# fiber-path-plot.jl sits on top of that stack; it provides visual diagnostics.
+# This file provides the numerical propagation layer for callable local Jones
+# generators. It advances `dJ/ds = K(s)J` with an adaptive exponential-midpoint
+# method, respects caller-supplied breakpoints, supports optional lumped jumps, and
+# integrates the coupled sensitivity system for `G = ∂ωJ`. Fiber-specific wrappers
+# obtain `K`, `Kω`, and breakpoints from `fiber-path.jl`; plotting diagnostics live
+# above this layer in `fiber-path-plot.jl`.
+#
+# The implementation assumes lossless SU(2)-style Jones dynamics. Error control is
+# phase-insensitive, and MCM-compatible code paths avoid scalar coercions,
+# particle-dependent branching, and generic matrix exponentials that do not lift
+# through `MonteCarloMeasurements.Particles`.
 
+# Fiber and the generator API come from the FiberPath submodule, in scope via
+# the PathIntegral submodule in Bifrost.jl.
+# NOTE: fiber-path-plot.jl is intentionally not included here. Callers that need
+# plotting helpers should include it themselves. This keeps path-integral.jl
+# focused on the propagation stack and lets test files guard their own plot
+# includes without double-inclusion.
 
 # ----------------------------
 # MCM scalar reduction
@@ -31,6 +33,15 @@
 # become too slow under tight tolerances. Keep `scalar_reduce` as the single
 # switch point.
 
+"""
+    scalar_reduce(x)
+
+Return a `Float64` scalar for adaptive-step decisions.
+
+Plain real numbers are converted directly. Particles-like values are detected by a
+`.particles` field and reduced with `maximum`, matching `pmaximum` without importing
+MonteCarloMeasurements into this file.
+"""
 scalar_reduce(x::AbstractFloat) = Float64(x)
 scalar_reduce(x::Integer) = Float64(x)
 # Catch-all for Particles-like types (ducked via a `.particles` field).  This
@@ -48,10 +59,9 @@ end
 # ----------------------------
 
 """
-    sinhc()
+    sinhc(μ)
 
-sinhc(μ) = sinh(μ)/μ, with Taylor expansion around μ=0 to avoid numerical issues
-(catastrophic cancellation).
+Return `sinh(μ) / μ` using a Taylor expansion near zero.
 """
 function sinhc(μ)
     # Elementwise arithmetic; lifts through MCM Particles entries automatically.
@@ -67,7 +77,7 @@ end
 """
     exp_jones_generator(A)
 
-Closed-form exponential for a `2×2` Jones generator.
+Return the closed-form exponential of a `2×2` Jones generator.
 
 For an exactly traceless matrix `A`, Cayley-Hamilton gives `A^2 = -det(A) I`, so
 
@@ -104,15 +114,37 @@ function exp_jones_generator(A::AbstractMatrix)
     return out
 end
 
+"""
+    exp_midpoint_step(K, s, h, J)
+
+Advance `J` one exponential-midpoint step over `[s, s + h]`.
+
+`K` is called at the interval midpoint and must return a `2×2` local Jones
+generator. The returned matrix is `exp(h * K(s + h/2)) * J`.
+"""
 function exp_midpoint_step(K, s::Float64, h::Float64, J::AbstractMatrix)
     M = K(s + 0.5h)
     return exp_jones_generator(h * M) * J
 end
 
+# Compute the 2×2 product C = A · B given entries of A and B as tuples.
+# Returns a 2×2 Matrix whose eltype is promoted from A and B entries so it
+# lifts cleanly through MCM Particles.
+@inline function _mul2x2(a11, a12, a21, a22, b11, b12, b21, b22)
+    c11 = a11 * b11 + a12 * b21
+    c12 = a11 * b12 + a12 * b22
+    c21 = a21 * b11 + a22 * b21
+    c22 = a21 * b12 + a22 * b22
+    return c11, c12, c21, c22
+end
+
 """
     exp_block_upper_triangular_2x2(hM, hMω)
 
-Closed-form exponential for the block-upper-triangular 4×4 matrix
+Return the closed-form exponential blocks for a coupled sensitivity step.
+
+This computes the diagonal block `E` and off-diagonal block `F` of the
+block-upper-triangular `4×4` matrix
 
     A = [ M   Mω ]
         [ 0   M  ]
@@ -216,17 +248,6 @@ with
 evaluated at a = hc (trace part absorbed into `exp(hc)` prefactor) and
 b = μh.  Small-b branches use Taylor expansions for numerical stability.
 """
-# Compute the 2×2 product C = A · B given entries of A and B as tuples.
-# Returns a 2×2 Matrix whose eltype is promoted from A and B entries so it
-# lifts cleanly through MCM Particles.
-@inline function _mul2x2(a11, a12, a21, a22, b11, b12, b21, b22)
-    c11 = a11 * b11 + a12 * b21
-    c12 = a11 * b12 + a12 * b22
-    c21 = a21 * b11 + a22 * b21
-    c22 = a21 * b12 + a22 * b22
-    return c11, c12, c21, c22
-end
-
 function exp_block_upper_triangular_2x2(hM::AbstractMatrix, hMω::AbstractMatrix)
     @assert size(hM) == (2, 2) && size(hMω) == (2, 2)
 
@@ -309,7 +330,7 @@ end
 """
     exp_sensitivity_midpoint_step(K, Kω, s, h, J, G)
 
-One midpoint step for the coupled system `dJ/ds = K·J`, `dG/ds = Kω·J + K·G`.
+Advance `(J, G)` one exponential-midpoint step over `[s, s + h]`.
 
 Uses a closed-form exponential of the 4×4 block-upper-triangular generator
 
@@ -347,6 +368,14 @@ end
 # Global phase insensitive
 # ----------------------------
 
+"""
+    phase_insensitive_error(A, B)
+
+Return the Frobenius error between two matrices after removing global phase.
+
+The best common phase is chosen from `tr(A' * B)`. If that overlap is zero, the
+plain Frobenius norm of `A - B` is returned.
+"""
 function phase_insensitive_error(A::AbstractMatrix, B::AbstractMatrix)
     # Remove best common phase from B relative to A.
     # Under MCM, opnorm of a Particles-entry matrix hits LinearAlgebra code paths
@@ -363,6 +392,13 @@ end
 
 _frobenius_norm(M::AbstractMatrix) = sqrt(sum(abs2, M))
 
+"""
+    align_global_phase(A, B)
+
+Return the unit complex phase that best aligns `B` to `A` in Frobenius inner product.
+
+If the overlap is zero, return the multiplicative identity for the matrix eltype.
+"""
 function align_global_phase(A::AbstractMatrix, B::AbstractMatrix)
     α = tr(A' * B)
     absα = abs(α)
@@ -372,6 +408,14 @@ function align_global_phase(A::AbstractMatrix, B::AbstractMatrix)
     return α / absα
 end
 
+"""
+    sensitivity_phase_insensitive_error(J_ref, G_ref, J_cmp, G_cmp)
+
+Return one scalar error for coupled Jones and sensitivity matrices.
+
+The comparison removes the global phase determined by `J_ref` and `J_cmp`, then
+returns the maximum of the reduced Frobenius errors for `J` and `G`.
+"""
 function sensitivity_phase_insensitive_error(
     J_ref::AbstractMatrix,
     G_ref::AbstractMatrix,
@@ -388,11 +432,26 @@ end
 # Adaptive step-doubling on one smooth interval
 # ----------------------------
 
+"""
+    PropagatorStats(accepted_steps, rejected_steps)
+
+Record adaptive step counts for one smooth propagation interval.
+"""
 struct PropagatorStats
     accepted_steps::Int
     rejected_steps::Int
 end
 
+"""
+    propagate_interval!(K, s0, s1, J0; rtol, atol, h_init, h_min, h_max,
+                        safety, growth_max, shrink_min)
+
+Propagate `dJ/ds = K(s) * J` over one smooth interval.
+
+The method uses exponential-midpoint step doubling with `phase_insensitive_error`.
+It returns `(J_final, stats)`, where `stats` is a `PropagatorStats` for the
+interval. The input `J0` is copied before stepping.
+"""
 function propagate_interval!(
     K,
     s0::Float64,
@@ -461,6 +520,16 @@ function propagate_interval!(
     return J, PropagatorStats(accepted, rejected)
 end
 
+"""
+    propagate_interval_sensitivity!(K, Kω, s0, s1, J0; G0, rtol, atol, h_init,
+                                    h_min, h_max, safety, growth_max, shrink_min)
+
+Propagate the coupled Jones and angular-frequency sensitivity system over one interval.
+
+The equations are `dJ/ds = K(s) * J` and `dG/ds = Kω(s) * J + K(s) * G`.
+The function returns `(J_final, G_final, stats)` and copies both initial matrices
+before stepping.
+"""
 function propagate_interval_sensitivity!(
     K,
     Kω,
@@ -535,21 +604,15 @@ end
 # ----------------------------
 
 """
-    propagate_piecewise(K, breaks; jumps=Dict(), kwargs...)
+    propagate_piecewise(K, breaks; jumps = Dict(), J0 = I, verbose = true, kwargs...)
 
-Propagate dJ/ds = K(s) J from breaks[1] to breaks[end].
+Propagate `dJ/ds = K(s) * J` across breakpoint-delimited smooth intervals.
 
-Arguments
----------
-- K: callable generator
-- breaks: sorted vector [s0, s1, ..., sN]
-- jumps: optional Dict{Float64, Matrix{ComplexF64}} giving lumped jump matrices
-         applied immediately AFTER reaching that breakpoint.
+`breaks` must be sorted and defines intervals `[breaks[i], breaks[i + 1]]`.
+`jumps` may contain lumped Jones matrices applied immediately after reaching a
+breakpoint. Additional keywords are forwarded to `propagate_interval!`.
 
-Returns
--------
-- J_final
-- stats_per_interval
+Return `(J_final, stats_per_interval)`.
 """
 function propagate_piecewise(
     K,
@@ -592,6 +655,15 @@ function propagate_piecewise(
     return J, stats
 end
 
+"""
+    propagate_fiber(fiber; λ_m, jumps = Dict(), kwargs...)
+
+Propagate a path-backed `Fiber` at operating wavelength `λ_m`.
+
+The local generator comes from `generator_K(fiber, λ_m)`, and interval boundaries
+come from `fiber_breakpoints(fiber)`. Additional keywords are forwarded to
+`propagate_piecewise`.
+"""
 function propagate_fiber(
     f::Fiber;
     λ_m::Real,
@@ -599,7 +671,7 @@ function propagate_fiber(
     kwargs...
 )
     return propagate_piecewise(
-        generator_K(f, f.cross_section, λ_m),
+        generator_K(f, λ_m),
         fiber_breakpoints(f);
         jumps = jumps,
         kwargs...,
@@ -607,18 +679,18 @@ function propagate_fiber(
 end
 
 """
-    propagate_piecewise_sensitivity(K, Kω, breaks; jumps=Dict(), jump_omegas=Dict(), kwargs...)
+    propagate_piecewise_sensitivity(K, Kω, breaks; jumps = Dict(),
+                                    jump_omegas = Dict(), J0 = I, G0 = 0,
+                                    verbose = true, kwargs...)
 
-Propagate the coupled system
-`dJ/ds = K(s) J`,
-`dG/ds = Kω(s) J + K(s) G`
-from `breaks[1]` to `breaks[end]`.
+Propagate the coupled Jones and angular-frequency sensitivity system across intervals.
 
-Returns
--------
-- `J_final`
-- `G_final = ∂ωJ_final`
-- `stats_per_interval`
+The equations are `dJ/ds = K(s) * J` and `dG/ds = Kω(s) * J + K(s) * G`.
+`jumps` are lumped Jones matrices applied after breakpoints, and `jump_omegas`
+are their angular-frequency derivatives. Additional keywords are forwarded to
+`propagate_interval_sensitivity!`.
+
+Return `(J_final, G_final, stats_per_interval)`.
 """
 function propagate_piecewise_sensitivity(
     K,
@@ -670,6 +742,17 @@ function propagate_piecewise_sensitivity(
     return J, G, stats
 end
 
+"""
+    propagate_fiber_sensitivity(fiber; λ_m, jumps = Dict(), jump_omegas = Dict(),
+                                kwargs...)
+
+Propagate a path-backed `Fiber` and its angular-frequency sensitivity.
+
+The local generators come from `generator_K(fiber, λ_m)` and
+`generator_Kω(fiber, λ_m)`, and interval boundaries come from
+`fiber_breakpoints(fiber)`. Additional keywords are forwarded to
+`propagate_piecewise_sensitivity`.
+"""
 function propagate_fiber_sensitivity(
     f::Fiber;
     λ_m::Real,
@@ -678,8 +761,8 @@ function propagate_fiber_sensitivity(
     kwargs...
 )
     return propagate_piecewise_sensitivity(
-        generator_K(f, f.cross_section, λ_m),
-        generator_Kω(f, f.cross_section, λ_m),
+        generator_K(f, λ_m),
+        generator_Kω(f, λ_m),
         fiber_breakpoints(f);
         jumps = jumps,
         jump_omegas = jump_omegas,
@@ -687,6 +770,14 @@ function propagate_fiber_sensitivity(
     )
 end
 
+"""
+    pmd_generator(J, G; hermitianize = true)
+
+Compute the PMD generator `H = -im * (J \\ G)`.
+
+Set `hermitianize = true` to replace `H` by `(H + H') / 2`, which suppresses
+small numerical anti-Hermitian drift before DGD extraction.
+"""
 function pmd_generator(J::AbstractMatrix, G::AbstractMatrix; hermitianize::Bool = true)
     H = -1im * (J \ G)
     if hermitianize
@@ -696,9 +787,10 @@ function pmd_generator(J::AbstractMatrix, G::AbstractMatrix; hermitianize::Bool 
 end
 
 """
-    output_dgd(J, G; hermitianize=true)
+    output_dgd(J, G; hermitianize = true)
 
-Differential group delay as the spread of real eigenvalues of the PMD generator
+Return differential group delay as the real eigenvalue spread of the PMD generator.
+
 `H = -i·J⁻¹·G`.
 
 Note: under MCM, `eigvals` on a `Matrix{<:Particles}` hits LinearAlgebra
@@ -714,10 +806,12 @@ function output_dgd(J::AbstractMatrix, G::AbstractMatrix; hermitianize::Bool = t
 end
 
 """
-    output_dgd_2x2(J, G; hermitianize=true)
+    output_dgd_2x2(J, G; hermitianize = true)
 
-Closed-form DGD for a 2×2 PMD generator.  Equivalent to `output_dgd` for
-the 2×2 case but avoids `eigvals`, so it lifts through MCM `Particles`.
+Return closed-form DGD for a `2×2` PMD generator.
+
+This is equivalent to `output_dgd` for the `2×2` case but avoids `eigvals`, so it
+lifts through MCM `Particles`.
 """
 function output_dgd_2x2(J::AbstractMatrix, G::AbstractMatrix; hermitianize::Bool = true)
     @assert size(J) == (2, 2) && size(G) == (2, 2)

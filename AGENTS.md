@@ -183,4 +183,7 @@ scattering.
 
 - When citing literature only use sources that you can verify in a library catalogue or
   database.
-- Markdown, comments and code must line wrap at 100 characters.
+- Markdown, comments and code must line wrap at 92 characters.
+- Modules, methods and structs should have inline documentation following julia norms 
+documented [here](https://docs.julialang.org/en/v1/manual/documentation/#Writing-Documentation).
+In the future we will use Documenter.jl for the codebase.

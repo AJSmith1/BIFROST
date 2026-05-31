@@ -2,6 +2,7 @@ using Test
 using LinearAlgebra
 using Bifrost
 
+
 const PADDLE_BEND_SCALE = 7.5
 const STATE_TOL = 1e-6
 

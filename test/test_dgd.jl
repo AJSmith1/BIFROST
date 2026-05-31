@@ -2,6 +2,7 @@ using Test
 using LinearAlgebra
 using Bifrost
 
+
 const SIGMA_X = ComplexF64[0 1; 1 0]
 const SIGMA_Y = ComplexF64[0 -im; im 0]
 const SIGMA_Z = ComplexF64[1 0; 0 -1]
@@ -208,8 +209,8 @@ end
     end
 end
 
-# TODO: twist refactor — DGD fiber integration test depends on a twist overlay
-# adding a breakpoint at s=2.0; pending per-segment-meta twist subsystem.
+# TODO: spinning refactor — DGD fiber integration test depends on a spinning overlay
+# adding a breakpoint at s=2.0; pending per-segment-meta spinning subsystem.
 @testset "DGD fiber integration" begin
     @test_skip true
 end
