@@ -184,3 +184,4 @@ scattering.
 - When citing literature only use sources that you can verify in a library catalogue or
   database.
 - Markdown, comments and code must line wrap at 100 characters.
+- Use `skills/julia-docstrings` for Julia docstring creation, revision, and audits.
