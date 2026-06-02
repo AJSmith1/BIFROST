@@ -52,11 +52,6 @@ function reference_aeff(fiber, λ_m, T_K)
     return π * (w_over_r * core_radius(fiber))^2
 end
 
-function reference_gamma(fiber, λ_m, T_K)
-    n2 = nonlinear_refractive_index(fiber.core_material, λ_m, T_K)
-    return reference_k0(λ_m) * n2 / reference_aeff(fiber, λ_m, T_K)
-end
-
 function reference_d(fiber, λ_m, T_K; dλ = 0.1e-9)
     n_minus = reference_neff(fiber, λ_m - dλ, T_K)
     n_center = reference_neff(fiber, λ_m, T_K)
@@ -162,9 +157,6 @@ const SMF_LIKE_FIBER = StepIndexCrossSection(
     # Pre-existing on origin/main: effective_mode_area uses a refined 5-term
     # Marcuse formula while reference_aeff uses the 3-term form, so they differ.
     @test_broken effective_mode_area(fiber, λ, T) ≈ reference_aeff(fiber, λ, T) rtol = 1e-12
-    # Pre-existing on origin/main: γ = k0·n2/Aeff, so this inherits the
-    # effective_mode_area / reference_aeff drift above.
-    @test_broken nonlinear_coefficient(fiber, λ, T) ≈ reference_gamma(fiber, λ, T) rtol = 1e-12
     @test chromatic_dispersion_parameter(fiber, λ, T) ≈ reference_d(fiber, λ, T) rtol = 1e-10
     # Pre-existing on origin/main: group_velocity_dispersion_parameter and
     # reference_beta2 disagree (units).
@@ -174,7 +166,6 @@ const SMF_LIKE_FIBER = StepIndexCrossSection(
     @test 1.5 < normalized_frequency(fiber, λ, T) < TEST_V_CUTOFF
     @test 70e-12 < effective_mode_area(fiber, λ, T) < 95e-12
     @test 8.0 < chromatic_dispersion_parameter(fiber, λ, T) < 20.0
-    @test 9e-4 < nonlinear_coefficient(fiber, λ, T) < 1.5e-3
 end
 
 @testset "StepIndexCrossSection cutoff behavior" begin

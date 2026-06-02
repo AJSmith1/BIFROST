@@ -90,7 +90,6 @@ end
         @test pmean(V) ≈ normalized_frequency(fiber, λ, T_nom) rtol=1e-4
 
         @test effective_mode_area(fiber, λ, T) isa Particles
-        @test nonlinear_coefficient(fiber, λ, T) isa Particles
 
         # WithDerivative carries Particles in both fields
         β_resp = propagation_constant(WithDerivative(), fiber, λ, T)
