@@ -605,7 +605,7 @@ function end_frame_local(seg::HelixSegment)
 end
 
 """
-    JumpBy(delta, tangent_out, curvature_out, min_bend_radius)
+    JumpBy <: AbstractPathSegment
 
 Relative jump connector resolved at build time into a quintic G2 Hermite curve.
 
@@ -626,24 +626,25 @@ struct JumpBy <: AbstractPathSegment
     curvature_out::Union{Nothing, NTuple{3, Float64}}
     min_bend_radius::Union{Nothing, Float64}
     meta::Vector{AbstractMeta}
-end
 
-"""
-    JumpBy(delta; tangent_out=nothing, curvature_out=nothing,
-                  min_bend_radius=nothing, meta=AbstractMeta[]) -> JumpBy
+    """
+        JumpBy(delta; tangent_out=nothing, curvature_out=nothing,
+                      min_bend_radius=nothing, meta=AbstractMeta[]) -> JumpBy
 
-Construct a relative jump connector to `current_position + delta`, resolved at
-`build` time. See the type docstring above for the full argument semantics.
-"""
-function JumpBy(delta; tangent_out = nothing, curvature_out = nothing,
-                min_bend_radius = nothing, meta = AbstractMeta[])
-    d = (Float64(delta[1]), Float64(delta[2]), Float64(delta[3]))
-    t = isnothing(tangent_out) ? nothing :
-        (Float64(tangent_out[1]), Float64(tangent_out[2]), Float64(tangent_out[3]))
-    k = isnothing(curvature_out) ? nothing :
-        (Float64(curvature_out[1]), Float64(curvature_out[2]), Float64(curvature_out[3]))
-    r = isnothing(min_bend_radius) ? nothing : Float64(min_bend_radius)
-    JumpBy(d, t, k, r, Vector{AbstractMeta}(meta))
+    Construct a relative jump connector to `current_position + delta`, resolved
+    at `build` time. See the type docstring above for the full argument
+    semantics.
+    """
+    function JumpBy(delta; tangent_out = nothing, curvature_out = nothing,
+                    min_bend_radius = nothing, meta = AbstractMeta[])
+        d = (Float64(delta[1]), Float64(delta[2]), Float64(delta[3]))
+        t = isnothing(tangent_out) ? nothing :
+            (Float64(tangent_out[1]), Float64(tangent_out[2]), Float64(tangent_out[3]))
+        k = isnothing(curvature_out) ? nothing :
+            (Float64(curvature_out[1]), Float64(curvature_out[2]), Float64(curvature_out[3]))
+        r = isnothing(min_bend_radius) ? nothing : Float64(min_bend_radius)
+        new(d, t, k, r, Vector{AbstractMeta}(meta))
+    end
 end
 
 # JumpBy is context-dependent: geometry is resolved at build() time into a
