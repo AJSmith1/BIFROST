@@ -9,3 +9,4 @@ __pycache__
 # Documenter.jl build artifacts
 docs/build/
 docs/Manifest.toml
+actions-runner/
