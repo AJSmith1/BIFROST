@@ -93,8 +93,7 @@ artifacts under `output/`.
 ## Documentation
 
 Full documentation is built with [Documenter.jl](https://documenter.juliadocs.org)
-from the `docs/` tree. It covers worked Julia and Python examples, the path/fiber
-authoring model, the generator and DGD theory, and the per-module API reference.
+from the `docs/` tree. 
 
 Build it locally:
 
