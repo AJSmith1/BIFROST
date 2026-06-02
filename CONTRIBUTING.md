@@ -44,5 +44,3 @@ julia --project=docs docs/make.jl
 ```
 
 The rendered site is written to `docs/build/` (open `docs/build/index.html`).
-`docs/undocumented.jl` regenerates `docs/undocumented.md`, a checklist of exported
-symbols still missing docstrings.
