@@ -90,7 +90,7 @@ function _run_benchmarks(; scenario::Symbol = :propagate)
             # Benchmark: propagate_fiber only (fiber pre-built)
             fiber  = _bench_build_fiber(make_T)
             fn     = () -> propagate_fiber(fiber; λ_m = _MCM_DEMO_λ_M,
-                              rtol = 1e-5, atol = 1e-9, h_min = 1e-12)
+                              params = SolverParams(rtol = 1e-5, atol = 1e-9, h_min = 1e-12))
         else
             # Benchmark: fiber build (incl. :T_K thermal scaling) + propagate
             T_val  = make_T()
@@ -102,7 +102,7 @@ function _run_benchmarks(; scenario::Symbol = :propagate)
                 f2 = Fiber(_mcm_demo_fiber(ΔT_K).path;
                            cross_section = _MCM_DEMO_XS, T_ref_K = T_K)
                 propagate_fiber(f2; λ_m = _MCM_DEMO_λ_M,
-                                rtol = 1e-5, atol = 1e-9, h_min = 1e-12)
+                                params = SolverParams(rtol = 1e-5, atol = 1e-9, h_min = 1e-12))
             end
         end
 
