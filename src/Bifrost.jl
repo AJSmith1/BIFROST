@@ -119,4 +119,13 @@ module Plots
     _export_public!(@__MODULE__)
 end
 
+module Plotting
+    using LinearAlgebra
+    using GLMakie
+    using GeometryBasics
+    include("plotting.jl")
+    import ..Bifrost: _export_public!
+    _export_public!(@__MODULE__)
+end
+
 end # module Bifrost
