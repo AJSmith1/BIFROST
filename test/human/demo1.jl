@@ -135,7 +135,7 @@ function _modify_row_html(output::AbstractString, title::AbstractString;
         dx = (k - 1) * variant_spacing
         all_segs = _all_placed(path)
         n_interior = length(path.placed_segments)
-        for i in 1:length(all_segs)
+        for i in eachindex(all_segs)
             s     = _sample_segment_xyz(path, i)
             xs    = s.x .+ dx
             color = if i > n_interior

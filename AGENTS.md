@@ -187,3 +187,4 @@ scattering.
 - Modules, methods and structs should have inline documentation following julia norms 
 documented [here](https://docs.julialang.org/en/v1/manual/documentation/#Writing-Documentation).
 In the future we will use Documenter.jl for the codebase.
+- Obey the rule JuliaIndexFromLength. Use eachindex() not length() for iterating over vectors/tensors in loops. 

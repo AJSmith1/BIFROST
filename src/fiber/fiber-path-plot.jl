@@ -1448,7 +1448,7 @@ function write_adaptive_steps_plot(
         comp_traces_js = String(take!(buf))
     end
     comp_trace_names = has_components ?
-        join(["compTrace$(i)" for i in 1:length(components)], ", ") : ""
+        join(["compTrace$(i)" for i in eachindex(components)], ", ") : ""
 
     if has_components
         layout_grid       = "{ rows: 3, columns: 1, pattern: \"independent\", roworder: \"top to bottom\" }"

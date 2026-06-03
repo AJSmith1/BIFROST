@@ -599,8 +599,8 @@ const _DEMO2_T_REF = 297.15
 # Sample (x, z) per placed segment. Returns Vector{NamedTuple}, one entry
 # per segment with `.x` and `.z` arrays.
 function _demo2_path_segments_xz(path)
-    return [_sample_segment_xyz(path, i)
-            for i in 1:length(_all_placed(path))]
+    segs = _all_placed(path)
+    return [_sample_segment_xyz(path, i) for i in eachindex(segs)]
 end
 
 # Render baseline (black) and modified (red) overlay on a light background.

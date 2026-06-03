@@ -1395,7 +1395,7 @@ function _resolve_pending_continuous_spinning(builts::Vector{SubpathBuilt})
         prev_phi_0 = phi_end
         prev_run_length = 0.0
         prev_rate::Union{Float64, Function} = 0.0
-        for k in 1:length(rs_old)
+        for k in eachindex(rs_old)
             r = rs_old[k]
             if k == 1
                 phi_0 = phi_end
