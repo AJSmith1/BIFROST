@@ -366,6 +366,52 @@ end
     @test_throws ArgumentError build([Subpath(sb1), Subpath(sb2)])
 end
 
+@testset "build(Vector{SubpathBuilder}) — matches explicit Subpath freeze" begin
+    # T-GUARDRAIL: build([sb1, sb2]) is a convenience that freezes each builder
+    # to a Subpath, so it must agree with build([Subpath(sb1), Subpath(sb2)]).
+    make_builders() = begin
+        sb1 = SubpathBuilder()
+        start!(sb1)
+        straight!(sb1; length = 0.2)
+        seal!(sb1)                                # natural exit at (0,0,0.2), +z
+
+        sb2 = SubpathBuilder()
+        start!(sb2; point = (0.0, 0.0, 0.2), outgoing_tangent = (0.0, 0.0, 1.0))
+        straight!(sb2; length = 0.1)
+        seal!(sb2)
+        (sb1, sb2)
+    end
+
+    sb1, sb2 = make_builders()
+    p_conv = build([sb1, sb2])
+    @test p_conv isa PathBuilt
+
+    sb1e, sb2e = make_builders()
+    p_ref = build([Subpath(sb1e), Subpath(sb2e)])
+
+    @test length(p_conv.subpaths) == length(p_ref.subpaths) == 2
+    @test isapprox(s_end(p_conv), s_end(p_ref); atol = 1e-12)
+    for s in (0.0, 0.15, s_end(p_ref))
+        @test isapprox(position(p_conv, s), position(p_ref, s); atol = 1e-10)
+    end
+end
+
+@testset "build(Vector{SubpathBuilder}) — conformity errors still surface" begin
+    # T-GUARDRAIL: a mismatched start between builders must still throw, exactly
+    # as it does for the explicit Subpath form.
+    sb1 = SubpathBuilder()
+    start!(sb1)
+    straight!(sb1; length = 0.2)
+    seal!(sb1)                                # ends at (0,0,0.2)
+
+    sb2 = SubpathBuilder()
+    start!(sb2; point = (1.0, 0.0, 0.2), outgoing_tangent = (0.0, 0.0, 1.0))
+    straight!(sb2; length = 0.1)
+    seal!(sb2)
+
+    @test_throws ArgumentError build([sb1, sb2])
+end
+
 # -----------------------------------------------------------------------
 # Subpath assembly and build
 # -----------------------------------------------------------------------

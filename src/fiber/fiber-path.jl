@@ -204,7 +204,9 @@ end
     Fiber(spec; cross_section, T_ref_K=DEFAULT_T_REF_K) -> Fiber
 
 Build a fiber from authored geometry, applying perturbation meta during the build.
-`spec` may be a `SubpathBuilder`, a `Subpath`, or a `Vector{Subpath}`.
+`spec` may be a `SubpathBuilder`, a `Subpath`, a `Vector{Subpath}`, or a
+`Vector{SubpathBuilder}` (each builder is frozen to a `Subpath` first, so
+thermal handling is identical to the `Vector{Subpath}` path).
 
 Thermal `:T_K` annotations are resolved here using
 `α_lin = cte(cross_section.cladding_material, T_ref_K)` — each thermal segment's
@@ -222,6 +224,11 @@ Fiber(spec::Subpath; cross_section::FiberCrossSection, T_ref_K = DEFAULT_T_REF_K
 
 Fiber(spec::Vector{Subpath}; cross_section::FiberCrossSection, T_ref_K = DEFAULT_T_REF_K) =
     Fiber(_build_perturbed(spec, cross_section, T_ref_K);
+          cross_section = cross_section, T_ref_K = T_ref_K)
+
+Fiber(spec::Vector{SubpathBuilder}; cross_section::FiberCrossSection,
+      T_ref_K = DEFAULT_T_REF_K) =
+    Fiber(Subpath[Subpath(b) for b in spec];
           cross_section = cross_section, T_ref_K = T_ref_K)
 
 frame_rotation_rate(path::Union{SubpathBuilt, PathBuilt}, s::Real) =

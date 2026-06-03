@@ -1521,14 +1521,16 @@ function _check_subpath_conformity(prev_built::SubpathBuilt, cur::Subpath, idx::
 end
 
 """
-    build(builts::Vector{SubpathBuilt}) → PathBuilt
-    build(subpaths::Vector{Subpath})   → PathBuilt
-    build(spb::SubpathBuilt)           → PathBuilt
+    build(builts::Vector{SubpathBuilt})   → PathBuilt
+    build(subpaths::Vector{Subpath})      → PathBuilt
+    build(builders::Vector{SubpathBuilder}) → PathBuilt
+    build(spb::SubpathBuilt)              → PathBuilt
 
 Stitch already-built `SubpathBuilt`s into a `PathBuilt`, validating that
 adjacent Subpaths' endpoint states agree, and resolving any cross-Subpath
-spinning continuity. The vector-of-Subpath form builds each first; the single
-`SubpathBuilt` form wraps a length-1 PathBuilt.
+spinning continuity. The vector-of-Subpath form builds each first; the
+`Vector{SubpathBuilder}` convenience form freezes each builder to a `Subpath`
+before building; the single `SubpathBuilt` form wraps a length-1 PathBuilt.
 """
 function build(builts::Vector{SubpathBuilt})
     isempty(builts) && throw(ArgumentError("PathBuilt: at least one SubpathBuilt required"))
@@ -1541,6 +1543,9 @@ end
 
 build(subpaths::Vector{Subpath}; perturb::Bool = false) =
     build([build(sp; perturb) for sp in subpaths])
+
+build(builders::Vector{SubpathBuilder}; perturb::Bool = false) =
+    build(Subpath[Subpath(b) for b in builders]; perturb = perturb)
 
 build(spb::SubpathBuilt) = build(SubpathBuilt[spb])
 

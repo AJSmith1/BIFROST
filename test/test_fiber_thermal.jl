@@ -189,6 +189,50 @@ end
     @test isapprox(collect(position(f.path, s_end)), collect(P); atol = 1e-6)
 end
 
+@testset "Fiber Vector{SubpathBuilder} — routes through thermal jumpto! handling" begin
+    # T-GUARDRAIL: Fiber([sb1, sb2]) must freeze builders to Subpaths and reuse
+    # the Vector{Subpath} thermal path, NOT build([sb1, sb2]) first (which would
+    # bypass per-subpath jumpto_target_length). A terminal jumpto! :T_K on the
+    # last subpath proves the connector expansion (#33) still applies.
+    ΔT = 100.0
+    P1 = (0.0, 0.0, 0.5)
+    P2 = (0.1, 0.0, 1.0)
+    make_builders() = begin
+        sb1 = SubpathBuilder(); start!(sb1)
+        straight!(sb1; length = 0.5)
+        jumpto!(sb1; point = P1, incoming_tangent = (0.0, 0.0, 1.0))
+
+        sb2 = SubpathBuilder()
+        start!(sb2; point = P1, outgoing_tangent = (0.0, 0.0, 1.0))
+        straight!(sb2; length = 0.4)
+        jumpto!(sb2; point = P2, incoming_tangent = (1.0, 0.0, 0.0),
+                meta = [MCMadd(:T_K, ΔT)])
+        (sb1, sb2)
+    end
+
+    sb1, sb2 = make_builders()
+    f_conv = Fiber([sb1, sb2]; cross_section = _FT_XS, T_ref_K = _FT_T_REF)
+
+    sb1e, sb2e = make_builders()
+    f_ref = Fiber([Subpath(sb1e), Subpath(sb2e)];
+                  cross_section = _FT_XS, T_ref_K = _FT_T_REF)
+
+    @test length(f_conv.path.subpaths) == length(f_ref.path.subpaths) == 2
+
+    s_conv = Float64(_qc_nominalize(arc_length(f_conv.path)))
+    s_ref  = Float64(_qc_nominalize(arc_length(f_ref.path)))
+    @test isapprox(s_conv, s_ref; atol = 1e-9)
+    @test isapprox(collect(position(f_conv.path, s_conv)),
+                   collect(position(f_ref.path, s_ref)); atol = 1e-9)
+
+    # The terminal connector of the last subpath thermally expanded by τ — and
+    # it is identical between the convenience and explicit forms.
+    conn_conv = arc_length(f_conv.path.subpaths[end].jumpto_quintic_connector)
+    conn_ref  = arc_length(f_ref.path.subpaths[end].jumpto_quintic_connector)
+    @test isapprox(Float64(_qc_nominalize(conn_conv)),
+                   Float64(_qc_nominalize(conn_ref)); rtol = 1e-9)
+end
+
 # -----------------------------------------------------------------------
 # Seal meta validation: only MCMadd(:T_K, …) is supported on jumpto!
 # -----------------------------------------------------------------------
