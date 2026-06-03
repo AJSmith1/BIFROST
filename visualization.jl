@@ -1,5 +1,6 @@
 using LinearAlgebra
 using GLMakie 
+using GeometryBasics
 
 const degrees = π / 180
 
@@ -83,85 +84,82 @@ function make_cone(tip, direction, radius=0.035, height=0.08)
     return vertices, faces
 end
 
-function plot_poincare(;
-    figsize    = (700, 650),
-    draw_axes  = true,
-    draw_guides = true,
-    sphere_alpha = 0.15,
-    title      = "", )
-
-    fig = Figure(size=figsize)
-
-    # Making axes
-    ax  = Axis3(fig[1,1];
-        aspect = :equal,
-        title = title,
-        titlesize = 20,      
-        xgridvisible = false,
-        ygridvisible = false,
-        zgridvisible = false,
-        xspinesvisible = false,
-        yspinesvisible = false,
-        zspinesvisible = false,
-        xticksvisible = false,
-        yticksvisible = false,
-        zticksvisible = false,
-        xlabelvisible = false,
-        ylabelvisible = false,
-        zlabelvisible = false,
-        xticklabelsvisible = false,
-        yticklabelsvisible = false,
-        zticklabelsvisible = false,
-        viewmode = :fit,
-        limits = (-1.2, 1.2, -1.2, 1.2, -1.2, 1.2),
+function _poincare_axis(fig, row, col; title="")
+    Axis3(fig[row, col];
+        aspect             = :equal,
+        title              = string(title),
+        titlesize          = 20,
+        xgridvisible       = false, ygridvisible       = false, zgridvisible       = false,
+        xspinesvisible     = false, yspinesvisible     = false, zspinesvisible     = false,
+        xticksvisible      = false, yticksvisible      = false, zticksvisible      = false,
+        xlabelvisible      = false, ylabelvisible      = false, zlabelvisible      = false,
+        xticklabelsvisible = false, yticklabelsvisible = false, zticklabelsvisible = false,
+        viewmode           = :fit,
+        limits             = (-1.4, 1.4, -1.4, 1.4, -1.4, 1.4),
     )
+end
 
-    # Making sphere surface
+function _draw_poincare_sphere!(ax; draw_axes=true, draw_guides=true, sphere_alpha=0.15)
     el_range = range(-45*degrees, 45*degrees, length=60)
     az_range = range(0, 180*degrees, length=60)
     xs = [azel_2_xyz(az, el)[1] for el in el_range, az in az_range]
     ys = [azel_2_xyz(az, el)[2] for el in el_range, az in az_range]
     zs = [azel_2_xyz(az, el)[3] for el in el_range, az in az_range]
     surface!(ax, xs, ys, zs;
-        color     = fill(RGBAf(0.4, 0.6, 0.9, sphere_alpha), size(xs)),
-        shading   = true,
+        color        = fill(RGBAf(0.4, 0.6, 0.9, sphere_alpha), size(xs)),
+        shading      = true,
         transparency = true,
     )
-    
-    # Guide circles
     if draw_guides
-        θ = range(0, 2π, length=361)
-        guide_style = (; color=:darkslategray, linestyle=:dashdot, linewidth=1.5)
-        lines!(ax, sin.(θ), cos.(θ), zeros(361); guide_style...)   # S3=0
-        lines!(ax, sin.(θ), zeros(361), cos.(θ); guide_style...)   # S2=0
-        lines!(ax, zeros(361), sin.(θ), cos.(θ); guide_style...)   # S1=0
+        θ  = range(0, 2π, length=361)
+        gs = (; color=:darkslategray, linestyle=:dashdot, linewidth=1.5)
+        lines!(ax, sin.(θ), cos.(θ), zeros(361); gs...)
+        lines!(ax, sin.(θ), zeros(361), cos.(θ);  gs...)
+        lines!(ax, zeros(361), sin.(θ), cos.(θ);  gs...)
     end
-
-    # Stokes axes
     if draw_axes
         L = 1.2
         for (vec, label, col) in [
-            ([L,0,0],  "S1",  :red),
-            ([-L,0,0], "-S1", :red),
-            ([0,L,0],  "S2",  :green),
-            ([0,-L,0], "-S2", :green),
-            ([0,0,L],  "S3",  :blue),
-            ([0,0,-L], "-S3", :blue),
+            ([L,0,0], "S1", :red),   ([-L,0,0], "-S1", :red),
+            ([0,L,0], "S2", :green), ([0,-L,0], "-S2", :green),
+            ([0,0,L], "S3", :blue),  ([0,0,-L], "-S3", :blue),
         ]
-            # solid positive, dashed negative
             ls = startswith(label, "-") ? :dash : :solid
-            lines!(ax, [0, vec[1]], [0, vec[2]], [0, vec[3]];
+            lines!(ax, [0,vec[1]], [0,vec[2]], [0,vec[3]];
                 color=col, linewidth=3, linestyle=ls)
             text!(ax, vec[1], vec[2], vec[3];
-                text=label,
-                color=col,
-                fontsize=18,
-                font=:bold,
-                align=(:center, :center),
-            )
+                text=label, color=col, fontsize=18, font=:bold,
+                align=(:center, :center))
         end
     end
+end
 
+function _subplot_assignment(n, n_subplots, datasets_per_subplot) 
+    if datasets_per_subplot === nothing
+        base = div(n, n_subplots)
+        r    = n % n_subplots
+        datasets_per_subplot = [base + (i <= r ? 1 : 0) for i in 1:n_subplots]
+    else
+        length(datasets_per_subplot) == n_subplots ||
+            error("datasets_per_subplot must have length n_subplots")
+    end
+    subplot_of = Int[]
+    for (sp, count) in enumerate(datasets_per_subplot)
+        append!(subplot_of, fill(sp, count))
+    end
+    return subplot_of
+end
+
+function plot_poincare(;
+    figsize      = (700, 650),
+    draw_axes    = true,
+    draw_guides  = true,
+    sphere_alpha = 0.15,
+    title        = "",)
+
+    fig = Figure(size=figsize)
+    ax  = _poincare_axis(fig, 1, 1; title)
+    _draw_poincare_sphere!(ax; draw_axes, draw_guides, sphere_alpha)
     return fig, ax
 end
 
@@ -228,14 +226,62 @@ function jones_arc(ax, J::Matrix{ComplexF64};
     return ax
 end
 
-function plot_jones(J::Matrix{ComplexF64}; 
-    figsize=( 700, 650), draw_axes=true, draw_guides=true,
-    sphere_alpha=0.15, title="", kwargs...)
+function plot_jones(jones_matrices::Matrix{ComplexF64}...;
+    figsize              = (700, 650),
+    n_subplots           = 1,
+    datasets_per_subplot = nothing,
+    draw_axes            = true,
+    draw_guides          = true,
+    sphere_alpha         = 0.15,
+    title                = "",
+    # jones_arc options — scalar or per-matrix vector
+    axis_color       = :black,
+    arc_color        = :crimson,
+    axis_length      = 1.25,
+    axis_width       = 5,
+    arc_width        = 3,
+    n_arrows         = 3,
+    start_vec        = nothing,
+    show_angle_label = true,)
 
-    fig, ax = plot_poincare(;
-        figsize, draw_axes, draw_guides, sphere_alpha, title)
-    jones_arc(ax, J; kwargs...)
-    return fig, ax
+    n = length(jones_matrices)
+    n == 0 && error("At least one Jones matrix required")
+
+    subplot_of = _subplot_assignment(n, n_subplots, datasets_per_subplot)
+
+    # per-matrix broadcasting
+    _dvec(x) = (x isa AbstractVector && length(x) == n && n > 1) ? collect(x) : fill(x, n)
+    axis_colors       = _dvec(axis_color)
+    arc_colors        = _dvec(arc_color)
+    axis_lengths      = _dvec(axis_length)
+    axis_widths       = _dvec(axis_width)
+    arc_widths        = _dvec(arc_width)
+    n_arrowsv         = _dvec(n_arrows)
+    start_vecs        = _dvec(start_vec)
+    show_angle_labels = _dvec(show_angle_label)
+
+    # per-subplot titles
+    titles = (title isa AbstractVector) ? title : fill(string(title), n_subplots)
+    length(titles) == n_subplots || error("title vector must have length n_subplots")
+
+    fig = Figure(size = (figsize[1] * n_subplots, figsize[2]))
+    axs = [_poincare_axis(fig, 1, sp; title=titles[sp]) for sp in 1:n_subplots]
+    foreach(ax -> _draw_poincare_sphere!(ax; draw_axes, draw_guides, sphere_alpha), axs)
+
+    for (i, J) in enumerate(jones_matrices)
+        jones_arc(axs[subplot_of[i]], J;
+            axis_color       = axis_colors[i],
+            arc_color        = arc_colors[i],
+            axis_length      = axis_lengths[i],
+            axis_width       = axis_widths[i],
+            arc_width        = arc_widths[i],
+            n_arrows         = n_arrowsv[i],
+            start_vec        = start_vecs[i],
+            show_angle_label = show_angle_labels[i],
+        )
+    end
+
+    return fig, axs
 end
 
 function stokes_from_jones_vec(e::AbstractVector{<:Complex})
@@ -278,54 +324,61 @@ function stokes_scatter!(ax, xs, ys, zs;
 end
 
 function plot_stokes_vec(datasets...;
-    figsize       = (700, 650),
-    draw_axes     = true,
-    draw_guides   = true,
-    sphere_alpha  = 0.15,
-    title         = "",
-    param         = nothing,
-    param_name    = nothing,
-    colormap      = :plasma,
-    color         = :crimson,
-    markersize    = 10,
-    show_colorbar = true,)
+    figsize              = (700, 650),
+    n_subplots           = 1,
+    datasets_per_subplot = nothing,
+    draw_axes            = true,
+    draw_guides          = true,
+    sphere_alpha         = 0.15,
+    title                = "",
+    param                = nothing,
+    param_name           = nothing,
+    colormap             = :plasma,
+    color                = :crimson,
+    markersize           = 10,
+    show_colorbar        = true,)
 
     n = length(datasets)
- 
-    # Broadcast a scalar / single value to a per-dataset vector.
-    # A vector already of length n (with n>1) is treated as per-dataset.
-    _bvec(x) = (x isa AbstractVector && length(x) == n && n > 1) ? x : fill(x, n)
- 
-    cmaps  = _bvec(colormap)
-    colors = _bvec(color)
-    msizes = _bvec(markersize)
-    pnames = _bvec(param_name)
- 
-    # `param` semantics:
-    #   n == 1  →  param IS the colour array for that dataset
-    #   n  > 1  →  param should be a length-n Vector of arrays (or nothing)
+    n == 0 && error("At least one dataset required")
+
+    subplot_of = _subplot_assignment(n, n_subplots, datasets_per_subplot)
+
+    # per-dataset broadcasting
+    _dvec(x) = (x isa AbstractVector && length(x) == n && n > 1) ? collect(x) : fill(x, n)
+    cmaps    = _dvec(colormap)
+    colors   = _dvec(color)
+    msizes   = _dvec(markersize)
+    pnames   = _dvec(param_name)
+    show_cbs = _dvec(show_colorbar)
+
     params = if n == 1
         [param]
     elseif param === nothing
         fill(nothing, n)
     elseif param isa AbstractVector && length(param) == n
-        param          # assumed to be [arr_for_ds1, arr_for_ds2, …]
+        collect(param)
     else
-        fill(param, n) # same array broadcast to every dataset
+        fill(param, n)
     end
- 
-    fig, ax = plot_poincare(; figsize, draw_axes, draw_guides, sphere_alpha, title)
- 
-    next_col = 2       # next grid column for colorbars
+
+    titles = (title isa AbstractVector) ? title : fill(string(title), n_subplots)
+    length(titles) == n_subplots || error("title vector must have length n_subplots")
+
+    fig = Figure(size = (figsize[1] * n_subplots, figsize[2]))
+    axs = [_poincare_axis(fig, 1, sp; title=titles[sp]) for sp in 1:n_subplots]
+    foreach(ax -> _draw_poincare_sphere!(ax; draw_axes, draw_guides, sphere_alpha), axs)
+
+    next_col = n_subplots + 1
+
     for (i, ds) in enumerate(datasets)
         xs, ys, zs = _extract_stokes_xyz(ds)
-        sc = stokes_scatter!(ax, xs, ys, zs;
+        stokes_scatter!(axs[subplot_of[i]], xs, ys, zs;
             param      = params[i],
             color      = colors[i],
             colormap   = cmaps[i],
             markersize = msizes[i],
         )
-        if show_colorbar && params[i] !== nothing
+        if show_cbs[i] && params[i] !== nothing
             lbl = pnames[i] !== nothing ? string(pnames[i]) : ""
             Colorbar(fig[1, next_col];
                 colormap = cmaps[i],
@@ -338,8 +391,8 @@ function plot_stokes_vec(datasets...;
             next_col += 1
         end
     end
- 
-    return fig, ax
+
+    return fig, axs
 end
 
 function _extract_stokes_xyz(ds)
@@ -358,8 +411,7 @@ function _extract_stokes_xyz(ds)
     return Float64.(xs), Float64.(ys), Float64.(zs)
 end
 
-function plot_ellipse(
-    datasets...;
+function plot_ellipse(datasets...;
     figsize = (600, 600),
     N_angles = 91,
     show_rotation_label = true,
@@ -369,7 +421,7 @@ function plot_ellipse(
     n_subplots = 1,
     datasets_per_subplot = nothing,
 
-    # styling
+    # parameter styling
     param = nothing,
     param_name = nothing,
     colormap = :plasma,
@@ -380,64 +432,35 @@ function plot_ellipse(
     n = length(datasets)
     n == 0 && error("At least one dataset required")
 
-    function datasetvec(x)
-        if x isa AbstractVector && length(x) == n
-            return collect(x)
-        else
-            return fill(x, n)
-        end
-    end
-
-    params        = datasetvec(param)
-    param_names   = datasetvec(param_name)
-    colormaps     = datasetvec(colormap)
-    colors        = datasetvec(color)
-    colorranges   = datasetvec(colorrange)
-    show_cbs      = datasetvec(show_colorbar)
-
-    # Subplot assignment
-
+    # subplot grouping
     if datasets_per_subplot === nothing
         base = div(n, n_subplots)
-        rem  = n % n_subplots
-
-        datasets_per_subplot = [
-            base + (i <= rem ? 1 : 0)
-            for i in 1:n_subplots
-        ]
+        rem = n % n_subplots
+        datasets_per_subplot = [base + (i <= rem ? 1 : 0) for i in 1:n_subplots]
     else
         length(datasets_per_subplot) == n_subplots ||
             error("datasets_per_subplot must match n_subplots")
     end
 
     subplot_of = Int[]
-
     for (sp, count) in enumerate(datasets_per_subplot)
         append!(subplot_of, fill(sp, count))
     end
 
-    # ------------------------------------------------------------
     # angle grid
-    # ------------------------------------------------------------
+    angles = range(0, 360degrees, length=N_angles)
 
-    angles = range(0, 360degrees, length = N_angles)
-
-    # ------------------------------------------------------------
-    # compute ellipses
-    # ------------------------------------------------------------
-
+    # compute Ex, Ey
     all_Ex = Vector{Matrix{Float64}}(undef, n)
     all_Ey = Vector{Matrix{Float64}}(undef, n)
 
     for (d, data) in enumerate(datasets)
 
         N = length(data)
-
         Ex = zeros(N, N_angles)
         Ey = zeros(N, N_angles)
 
         for i in 1:N
-
             E0x = abs(data[i][1])
             E0y = abs(data[i][2])
 
@@ -445,10 +468,8 @@ function plot_ellipse(
             ϕy = angle(data[i][2])
 
             for (j, θ) in enumerate(angles)
-
                 Ex[i, j] = E0x * cos(ϕx - θ)
                 Ey[i, j] = E0y * cos(ϕy - θ)
-
             end
         end
 
@@ -456,58 +477,55 @@ function plot_ellipse(
         all_Ey[d] = Ey
     end
 
-    # ------------------------------------------------------------
-    # limits per subplot
-    # ------------------------------------------------------------
-
+    # subplot limits
     xlims = Vector{Tuple{Float64, Float64}}(undef, n_subplots)
     ylims = Vector{Tuple{Float64, Float64}}(undef, n_subplots)
 
     for sp in 1:n_subplots
-
         idx = findall(==(sp), subplot_of)
 
         if limit !== nothing
-
             xlims[sp] = (-limit, limit)
             ylims[sp] = (-limit, limit)
-
         else
-
             xs = vcat([vec(all_Ex[i]) for i in idx]...)
             ys = vcat([vec(all_Ey[i]) for i in idx]...)
 
-            xmax = 1.2maximum(abs.(xs))
-            ymax = 1.2maximum(abs.(ys))
-
-            xlims[sp] = (-xmax, xmax)
-            ylims[sp] = (-ymax, ymax)
-
+            xlims[sp] = (-1.2maximum(abs.(xs)), 1.2maximum(abs.(xs)))
+            ylims[sp] = (-1.2maximum(abs.(ys)), 1.2maximum(abs.(ys)))
         end
     end
 
     arrow_head(sp) = 0.05 * max(
         xlims[sp][2] - xlims[sp][1],
-        ylims[sp][2] - ylims[sp][1],
+        ylims[sp][2] - ylims[sp][1]
     ) / 2
 
-    # ------------------------------------------------------------
-    # figure
-    # ------------------------------------------------------------
+    # param broadcasting
+    _bvec(x) = (x isa AbstractVector && length(x) == n_subplots) ? x : fill(x, n_subplots)
 
+    cmaps  = _bvec(colormap)
+    colors = _bvec(color)
+
+    params = if n == 1
+        [param]
+    elseif param === nothing
+        fill(nothing, n)
+    elseif param isa AbstractVector && length(param) == n
+        param
+    else
+        fill(param, n)
+    end
+
+    # figure — reserve extra columns for colorbars beyond the subplot grid
     fig = Figure(size = (figsize[1] * n_subplots, figsize[2]))
-
-    gl = fig[1, 1:n_subplots] = GridLayout()
-
+    gl  = fig[1, 1:n_subplots] = GridLayout()
     axs = [Axis(gl[1, i]) for i in 1:n_subplots]
 
-    next_cb_col = n_subplots + 1
+    next_col = n_subplots + 1   # first column outside the subplot grid
 
-    # ------------------------------------------------------------
     # plotting
-    # ------------------------------------------------------------
-
-    for d in 1:n
+    for (d, data) in enumerate(datasets)
 
         sp = subplot_of[d]
         ax = axs[sp]
@@ -515,42 +533,26 @@ function plot_ellipse(
         Ex = all_Ex[d]
         Ey = all_Ey[d]
 
-        p      = params[d]
-        cmap   = colormaps[d]
-        c      = colors[d]
-        crange = colorranges[d]
-
-        curve_colored =
-            p isa AbstractVector &&
-            length(p) == size(Ex, 1)
-
-        if curve_colored && crange === nothing
-            crange = extrema(p)
-        end
-
         for i in axes(Ex, 1)
 
-            if curve_colored
-
-                lines!(
-                    ax,
-                    Ex[i, :],
-                    Ey[i, :];
-                    color = p[i],
-                    colormap = cmap,
-                    colorrange = crange,
-                )
-
+            if params[d] === nothing
+                lines!(ax, Ex[i, :], Ey[i, :]; color = colors[sp])
             else
+                p = params[d]
 
-                lines!(
-                    ax,
-                    Ex[i, :],
-                    Ey[i, :];
-                    color = c,
-                )
-
+                if p isa AbstractVector && length(p) == size(Ex, 1)
+                    # curve-level coloring
+                    cr = colorrange !== nothing ? colorrange : extrema(p)
+                    lines!(ax, Ex[i, :], Ey[i, :];
+                        color      = p[i],
+                        colormap   = cmaps[sp],
+                        colorrange = cr,
+                    )
+                else
+                    lines!(ax, Ex[i, :], Ey[i, :]; color = colors[sp])
+                end
             end
+
         end
 
         xlims!(ax, xlims[sp])
@@ -562,72 +564,46 @@ function plot_ellipse(
         end
 
         if draw_titles
-
-            names = [
-                "E$i"
-                for i in findall(==(sp), subplot_of)
-            ]
-
+            names = ["E$i" for i in findall(==(sp), subplot_of)]
             ax.title = join(names, ", ")
         end
 
-        # --------------------------------------------------------
-        # dataset-specific colorbar
-        # --------------------------------------------------------
+        # Colorbar — one per dataset that carries a curve-level param vector
+        if show_colorbar && params[d] isa AbstractVector &&
+                length(params[d]) == size(all_Ex[d], 1)
 
-        if show_cbs[d] && curve_colored
+            p   = params[d]
+            cr  = colorrange !== nothing ? colorrange : extrema(p)
+            lbl = param_name !== nothing ? string(param_name) : ""
 
-            label =
-                param_names[d] === nothing ?
-                "" :
-                string(param_names[d])
-
-            Colorbar(
-                fig[1, next_cb_col];
-                colormap = cmap,
-                limits = crange,
-                label = label,
-                width = 18,
-                height = Relative(0.6),
-                valign = :center,
+            Colorbar(fig[1, next_col];
+                colormap = cmaps[sp],
+                limits   = cr,
+                label    = lbl,
+                width    = 18,
+                height   = Relative(0.6),
+                valign   = :center,
             )
-
-            next_cb_col += 1
+            next_col += 1
         end
     end
 
-    # ------------------------------------------------------------
-    # rotation labels
-    # ------------------------------------------------------------
-
     if show_rotation_label
-
         for sp in 1:n_subplots
-
             signed_sum = 0.0
-
             for d in findall(==(sp), subplot_of)
-
                 for item in datasets[d]
-
-                    signed_sum +=
-                        sin(angle(item[2]) - angle(item[1]))
-
+                    signed_sum += sin(angle(item[2]) - angle(item[1]))
                 end
             end
-
-            text!(
-                axs[sp],
-                xlims[sp][2],
-                ylims[sp][1];
-                text = signed_sum >= 0 ? "CCW" : "CW",
+            text!(axs[sp], xlims[sp][2], ylims[sp][1];
+                text   = signed_sum >= 0 ? "CCW" : "CW",
                 fontsize = 18,
-                color = :black,
-                align = (:right, :bottom),
+                color    = :gray40,
+                align    = (:right, :bottom),
             )
         end
     end
 
     return fig, axs
-
 end
