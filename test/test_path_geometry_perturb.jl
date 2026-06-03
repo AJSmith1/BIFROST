@@ -10,14 +10,15 @@ using MonteCarloMeasurements
 
 # Build a sealed Subpath from a do-block that authors interior segments. Seals
 # at the natural exit (via seal!) if no jumpto! was called.
-function _subpath(f::Function)
-    sb = SubpathBuilder(); start!(sb)
+function _subpath(f::Function; spin_rate = nothing)
+    sb = SubpathBuilder(); start!(sb; spin_rate = spin_rate)
     f(sb)
     isnothing(sb.jumpto_point) && seal!(sb)
     return Subpath(sb)
 end
 
-_perturb(f::Function) = build(_subpath(f); perturb = true)
+_perturb(f::Function; spin_rate = nothing) =
+    build(_subpath(f; spin_rate = spin_rate); perturb = true)
 
 # -----------------------------------------------------------------------
 # Field-level MCM on a segment's own fields
@@ -102,13 +103,12 @@ end
     @test curvature(connector, 0.0) ≈ 0.5 atol = 1e-12
 end
 
-@testset "perturb — Spinning anchors tolerate MCM-valued modified length" begin
+@testset "perturb — spinning tolerates MCM-valued modified length" begin
     # T-GUARDRAIL
     MonteCarloMeasurements.unsafe_comparisons(true)
     try
-        path = _perturb() do sb
-            straight!(sb; length = 1.0,
-                      meta = [Spinning(; rate = 2.0), MCMadd(:length, 0.0 ± 0.01)])
+        path = _perturb(; spin_rate = 2.0) do sb
+            straight!(sb; length = 1.0, meta = [MCMadd(:length, 0.0 ± 0.01)])
         end
         seg = path.placed_segments[1].segment
         L_seg = arc_length(seg)

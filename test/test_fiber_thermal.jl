@@ -21,15 +21,17 @@ const _FT_ALPHA = cte(_FT_XS.cladding_material, _FT_T_REF)
 _ft_ΔT_for(α) = (α - 1) / _FT_ALPHA
 _ft_mcm(α)    = [MCMadd(:T_K, _ft_ΔT_for(α))]
 
-function _ft_subpath(f::Function)
-    sb = SubpathBuilder(); start!(sb)
+function _ft_subpath(f::Function; spin_rate = nothing)
+    sb = SubpathBuilder(); start!(sb; spin_rate = spin_rate)
     f(sb)
     isnothing(sb.jumpto_point) && seal!(sb)
     return Subpath(sb)
 end
 
-_ft_baseline(f) = build(_ft_subpath(f))
-_ft_scaled(f)   = Fiber(_ft_subpath(f); cross_section = _FT_XS, T_ref_K = _FT_T_REF).path
+_ft_baseline(f; spin_rate = nothing) = build(_ft_subpath(f; spin_rate = spin_rate))
+_ft_scaled(f; spin_rate = nothing)   =
+    Fiber(_ft_subpath(f; spin_rate = spin_rate);
+          cross_section = _FT_XS, T_ref_K = _FT_T_REF).path
 
 # -----------------------------------------------------------------------
 # Uniform thermal scaling via :T_K
@@ -302,9 +304,28 @@ end
 end
 
 # -----------------------------------------------------------------------
-# Spinning overlay remapping (pending per-segment-meta spinning subsystem)
+# Material spinning under thermal expansion
 # -----------------------------------------------------------------------
 
 @testset "Fiber :T_K — preserves constant spinning rate; total scales with length" begin
-    @test_skip true
+    # T-PHYSICS: thermal expansion scales arc length by α but leaves the spin
+    # rate τ unchanged, so the integrated spinning ∫τ ds scales by α.
+    α = 1.05
+    τ = 1.5
+    spec = sb -> straight!(sb; length = 2.0, meta = _ft_mcm(α))
+
+    base = _ft_baseline(spec; spin_rate = τ)
+    scal = _ft_scaled(spec; spin_rate = τ)
+
+    @test base.spin_rate == τ
+    @test scal.spin_rate == τ          # rate preserved, not scaled
+
+    Lb = Float64(_qc_nominalize(arc_length(base)))
+    Ls = Float64(_qc_nominalize(arc_length(scal)))
+    @test Ls ≈ α * Lb atol = 1e-9
+
+    Ωb = total_spinning(base; s_start = 0.0, s_end = Lb)
+    Ωs = total_spinning(scal; s_start = 0.0, s_end = Ls)
+    @test Ωb ≈ τ * Lb atol = 1e-9
+    @test Ωs ≈ α * Ωb rtol = 1e-9
 end

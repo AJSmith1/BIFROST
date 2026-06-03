@@ -14,7 +14,7 @@ curvature, torsion) and material spinning along arc length.
   natural exit, no bending).
 - `Subpath` (immutable) — frozen snapshot of user-supplied data only.
 - `SubpathBuilt` (immutable) — derived layout: `subpath` + `placed_segments`
-  + `jumpto_quintic_connector` + `resolved_spinning`.
+  + `jumpto_quintic_connector` + whole-Subpath `spin_rate`/`_spin_phi_at_s0`.
 - `PathBuilt` (immutable) — ordered container of `SubpathBuilt`s.
 
 `build(builder_or_subpath) → SubpathBuilt` runs the placement loop on one
@@ -45,25 +45,31 @@ Subpath must call `start!` before any segment and seal exactly once at the end
 
 # Spinning
 
-Spinning is attached as per-segment meta via `Spinning <: AbstractMeta`.
-A `Spinning` placed in a segment's `meta` vector starts a spinning run at that
-segment's start and continues until the next `Spinning`-bearing segment, or
-until the Subpath ends. The terminal `jumpto!`/`seal!` connector carries `meta`
-too and is treated as the Subpath's last segment, so a `Spinning` on the seal
-starts a run over the connector just like one on any interior segment.
+Material spinning is one spec per Subpath, set at [`start!`](@ref) via the
+`spin_rate` keyword. It covers the whole Subpath (interior segments and the
+terminal `jumpto!`/`seal!` connector alike):
 
-`rate` may be a `Real` (constant rad/m) or a `Function` `rate(s_local)`. A
-`Spinning` with `is_continuous = true` placed on the first spinning anchor of a
-Subpath leaves the resolution pending; `build(::Vector{SubpathBuilt})` then
-inherits `phi_0` from the prior Subpath's terminal phase.
+- `spin_rate = nothing` (default) — no spin on this Subpath.
+- `spin_rate::Real` — constant rate (rad/m).
+- `spin_rate::Function` — `rate(s_local)` of Subpath-local arc length, with
+  `s_local = 0` at the Subpath start.
+- `spin_rate = :inherit` — copy the previous Subpath's `spin_rate` (valid only
+  for a non-first Subpath in `build([...])`).
+
+The spin **phase** `_spin_phi_at_s0` (accumulated rad at the Subpath's `s = 0`)
+is always continuous across Subpath boundaries: it is `0` on the first Subpath
+and `prev._spin_phi_at_s0 + ∫ prev.spin_rate · ds` on every later Subpath
+(carried unchanged through a no-spin Subpath). It is computed by
+`build(::Vector{SubpathBuilt})`. The phase is bookkeeping only — the fiber
+generator consumes the spin *rate*, not the absolute phase.
 
 # Independence
 
 Each `Subpath` and `SubpathBuilt` is fully independent of all others. The
 Subpath holds its `start_point` and `jumpto_point` as the only globally-anchored
 values. `build(::Vector{SubpathBuilt})` is the first ordering-aware layer; it
-checks endpoint conformity between adjacent Subpaths and resolves any
-cross-Subpath spinning continuity.
+checks endpoint conformity between adjacent Subpaths and resolves the
+continuous cross-Subpath spin phase (`_spin_phi_at_s0`).
 
 # Interface
 
@@ -135,8 +141,9 @@ Supertype for per-segment annotations carried in a segment's
 
 `path-geometry.jl` is deliberately ignorant of what the bag contains;
 downstream layers define their own `AbstractMeta` subtypes (see
-`path-geometry-meta.jl`) and decide how to act on them. The only `AbstractMeta`
-this file interprets is [`Spinning`](@ref).
+`path-geometry-meta.jl`) and decide how to act on them. The geometry layer does
+not interpret any `AbstractMeta` directly (spinning is a `start!` keyword, not
+meta — see the file-header "Spinning" section).
 """
 abstract type AbstractMeta end
 
@@ -149,71 +156,21 @@ segment_meta(seg::AbstractPathSegment) =
     :meta ∈ fieldnames(typeof(seg)) ? seg.meta : AbstractMeta[]
 
 # -----------------------------------------------------------------------
-# Spinning  (per-segment material-spinning annotation)
-# -----------------------------------------------------------------------
-
-"""
-    Spinning(; rate, phi_0 = 0.0, is_continuous = false)
-
-Per-segment material-spinning annotation with a constant or function-valued
-rate.
-
-Attached to a segment's `meta` vector. The spinning run begins at the host
-segment's start (effective arc length `s_offset_eff`) and extends until the
-next segment carrying a `Spinning`, or until the path ends.
-
-- `rate` may be a `Real` (constant rad/m) or a `Function` `rate(s_local)` of
-  run-local arc length where `s_local = 0` at the start of the spinning run.
-- `phi_0` is the absolute initial phase (rad) at the start of the run when
-  `is_continuous = false`.
-- `is_continuous = true` means the resolver computes `phi_0` from the prior
-  spinning run's accumulated phase. In that case `phi_0` must be left at its
-  default `0.0`.
-
-At most one `Spinning` may appear in any single segment's `meta`. The first
-`Spinning` on a path must have `is_continuous = false`.
-"""
-struct Spinning <: AbstractMeta
-    rate::Union{Float64, Function}
-    phi_0::Float64
-    is_continuous::Bool
-
-    function Spinning(; rate, phi_0 = 0.0, is_continuous::Bool = false)
-        if is_continuous && phi_0 != 0.0
-            throw(ArgumentError(
-                "Spinning: do not specify phi_0 when is_continuous=true (phase is carried over from prior run)"))
-        end
-        r = rate isa Function ? rate : Float64(rate)
-        new(r, Float64(phi_0), is_continuous)
-    end
-end
-
-"""
-    ResolvedSpinningRate(s_eff_start, s_eff_end, rate, phi_0)
-
-A single spinning run resolved to absolute path coordinates. `rate` is called
-(when a `Function`) with run-local arc length `s_local = s - s_eff_start`.
-`phi_0` is the absolute phase (rad) at `s_eff_start`.
-"""
-struct ResolvedSpinningRate
-    s_eff_start::Float64
-    s_eff_end::Float64
-    rate::Union{Float64, Function}
-    phi_0::Float64
-end
-
-# -----------------------------------------------------------------------
-# Quadrature helper
+# Quadrature helper (spin-phase accumulation)
 # -----------------------------------------------------------------------
 
 """
     _integrate_rate(rate, a, b; rtol=1e-8, atol=0.0)
 
-Integrate a spinning `rate` over the run-local interval `[a, b]`.
+Integrate a spinning `rate` over the Subpath-local interval `[a, b]`.
 
 Constant rates take the analytic branch; `Function` rates use QuadGK adaptive
-Gauss–Kronrod, which subdivides automatically for oscillatory integrands.
+Gauss–Kronrod, which subdivides automatically for oscillatory integrands; a
+`nothing` rate (no spin) integrates to `0`.
 """
+_integrate_rate(::Nothing, a::Float64, b::Float64;
+                rtol::Float64 = 1e-8, atol::Float64 = 0.0) = 0.0
+
 _integrate_rate(rate::Float64, a::Float64, b::Float64;
                 rtol::Float64 = 1e-8, atol::Float64 = 0.0) = rate * (b - a)
 
@@ -668,8 +625,8 @@ end_frame_local(::JumpBy)        = error("JumpBy: call build() to resolve jump g
 include(joinpath(@__DIR__, "path-geometry-connector.jl"))
 
 # Concrete meta vocabulary lives in path-geometry-meta.jl. It is part of the
-# geometry layer (Spinning, Nickname, MCMadd, MCMmul) and makes no reference to
-# fiber. Included here so Subpath constructors can reference MCMadd/MCMmul for
+# geometry layer (Nickname, MCMadd, MCMmul) and makes no reference to fiber.
+# Included here so Subpath constructors can reference MCMadd/MCMmul for
 # validation.
 include(joinpath(@__DIR__, "path-geometry-meta.jl"))
 
@@ -762,13 +719,20 @@ mutable struct SubpathBuilder
     # bending. `jumpto_natural_extra` is an optional straight lead-out length.
     jumpto_natural::Bool
     jumpto_natural_extra::Float64
+    # Material spinning over the whole Subpath, set by `start!(; spin_rate=…)`.
+    # `nothing` = no spin; `Float64`/`Function` = concrete rate; `:inherit` =
+    # copy the previous Subpath's rate (resolved at vector build).
+    spin_rate::Union{Float64, Function, Nothing, Symbol}
+    # Accumulated spin phase (rad) at the Subpath's s=0. Internal; not a `start!`
+    # argument. `nothing` until resolved by build, then a `Float64`.
+    _spin_phi_at_s0::Union{Float64, Nothing}
 
     SubpathBuilder(; meta::AbstractVector{<:AbstractMeta} = AbstractMeta[]) =
         new(Vector{AbstractMeta}(meta),
             nothing, nothing, nothing,
             AbstractPathSegment[],
             nothing, nothing, nothing, nothing, AbstractMeta[],
-            false, 0.0)
+            false, 0.0, nothing, nothing)
 end
 
 """
@@ -791,15 +755,28 @@ _check_unsealed(b::SubpathBuilder) =
 
 """
     start!(builder; point=(0,0,0), outgoing_tangent=(0,0,1),
-                    outgoing_curvature=(0,0,0))
+                    outgoing_curvature=(0,0,0), spin_rate=nothing)
 
 Seal the Subpath start state. Throws if `start!` has already been called or
 if any interior segment has already been appended.
+
+`spin_rate` sets material spinning over the whole Subpath:
+
+- `nothing` (default) — no spin.
+- a `Real` — constant rate (rad/m).
+- a `Function` `rate(s_local)` of Subpath-local arc length (`s_local = 0` at the
+  Subpath start).
+- `:inherit` — copy the previous Subpath's `spin_rate`; valid only for a
+  non-first Subpath in `build([...])` whose predecessor actually spins.
+
+The spin phase is always continuous across Subpath boundaries (see the
+file-header "Spinning" section); it is resolved at build time, not here.
 """
 function start!(b::SubpathBuilder;
                 point = (0.0, 0.0, 0.0),
                 outgoing_tangent = (0.0, 0.0, 1.0),
-                outgoing_curvature = (0.0, 0.0, 0.0))
+                outgoing_curvature = (0.0, 0.0, 0.0),
+                spin_rate = nothing)
     !isnothing(b.start_point) &&
         throw(ArgumentError("SubpathBuilder: start!() already called"))
     !isempty(b.segments) &&
@@ -807,6 +784,18 @@ function start!(b::SubpathBuilder;
     b.start_point              = (Float64(point[1]),              Float64(point[2]),              Float64(point[3]))
     b.start_outgoing_tangent   = (Float64(outgoing_tangent[1]),   Float64(outgoing_tangent[2]),   Float64(outgoing_tangent[3]))
     b.start_outgoing_curvature = (Float64(outgoing_curvature[1]), Float64(outgoing_curvature[2]), Float64(outgoing_curvature[3]))
+    if spin_rate === nothing || spin_rate === :inherit || spin_rate isa Function
+        b.spin_rate = spin_rate
+    elseif spin_rate isa Real
+        b.spin_rate = Float64(spin_rate)
+    elseif spin_rate isa Symbol
+        throw(ArgumentError(
+            "start!: spin_rate Symbol must be :inherit; got :$(spin_rate)"))
+    else
+        throw(ArgumentError(
+            "start!: spin_rate must be nothing, a Real, a Function, or :inherit; " *
+            "got $(typeof(spin_rate))"))
+    end
     return b
 end
 
@@ -902,11 +891,11 @@ Seal the Subpath end by bending toward a global target `point`, storing the
 terminal connector spec on the builder.
 
 `meta` attaches annotations to the terminal connector, which is placed and
-queried exactly like any interior segment: a `Spinning` here starts a spinning
-run over the connector (see [`Spinning`](@ref)). Meta the geometry layer does
-not recognize is carried through for a consuming layer (e.g. the fiber reads a
-thermal annotation and expands the connector to land at `point` with a scaled
-arc length — see `build`'s `jumpto_target_length`).
+queried exactly like any interior segment. The Subpath's `spin_rate` (set at
+`start!`) covers the connector too. Meta the geometry layer does not recognize
+is carried through for a consuming layer (e.g. the fiber reads a thermal
+annotation and expands the connector to land at `point` with a scaled arc
+length — see `build`'s `jumpto_target_length`).
 
 Throws if `start!` was not called, or if the builder is already sealed. See
 also [`seal!`](@ref) to end at the natural exit without bending.
@@ -943,9 +932,8 @@ toward a global target with `jumpto!`.
 tangent. `extra == 0` (default) produces a true zero-length terminal connector.
 
 `meta` attaches annotations to the terminal connector, which is placed and
-queried like any interior segment: a `Spinning` here starts a spinning run over
-the lead-out (see [`Spinning`](@ref)). A zero-length seal still carries the meta,
-but its run is zero-length.
+queried like any interior segment. The Subpath's `spin_rate` (set at `start!`)
+covers the lead-out too. A zero-length seal still carries the meta.
 
 Like `jumpto!`, this seals the builder: no further segments may be added, and a
 builder may be sealed exactly once (by either `seal!` or `jumpto!`). Throws if
@@ -993,6 +981,9 @@ struct Subpath
     # terminal connector is built directly at the natural exit (see build).
     jumpto_natural::Bool
     jumpto_natural_extra::Float64
+    # Whole-Subpath material spinning (see SubpathBuilder).
+    spin_rate::Union{Float64, Function, Nothing, Symbol}
+    _spin_phi_at_s0::Union{Float64, Nothing}
 end
 
 """
@@ -1020,7 +1011,9 @@ function Subpath(b::SubpathBuilder)
                    b.jumpto_min_bend_radius,
                    deepcopy(b.jumpto_meta),
                    b.jumpto_natural,
-                   b.jumpto_natural_extra)
+                   b.jumpto_natural_extra,
+                   b.spin_rate,
+                   b._spin_phi_at_s0)
 end
 
 # Geometry queries on an unbuilt Subpath fail loudly.
@@ -1051,9 +1044,11 @@ Built form of a `Subpath`. Contains:
   (s offset, global origin, global frame at its start). Carried so query
   functions can treat the terminal connector uniformly with interior
   segments.
-- `resolved_spinning` — spinning runs resolved within this Subpath.
-- `pending_continuous_first_spinning` — true if the first spinning anchor was
-  deferred for `build(::Vector{SubpathBuilt})` to fill in.
+- `spin_rate` — the Subpath's whole-length material spin rate (`nothing`,
+  `Float64`, or `Function`; never `:inherit` once built).
+- `_spin_phi_at_s0` — accumulated spin phase (rad) at the Subpath's `s = 0`.
+  Set to `0.0` by `build(::Subpath)` and finalized (continuous across Subpath
+  boundaries) by `build(::Vector{SubpathBuilt})`.
 
 Local arc length runs from `0` to `s_end(::SubpathBuilt)` (computed on demand
 from the placed segments + terminal connector).
@@ -1063,8 +1058,8 @@ struct SubpathBuilt
     placed_segments::Vector{PlacedSegment}        # interior only
     jumpto_quintic_connector::QuinticConnector    # terminal connector
     jumpto_placed::PlacedSegment                  # placement of the terminal connector
-    resolved_spinning::Vector{ResolvedSpinningRate}
-    pending_continuous_first_spinning::Bool
+    spin_rate::Union{Float64, Function, Nothing, Symbol}
+    _spin_phi_at_s0::Float64
 end
 
 """
@@ -1246,213 +1241,61 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
     # position/frame at the end of the interior segments. Stored alongside
     # the connector so query functions treat it like any other placed segment.
     jumpto_placed = PlacedSegment(connector, s_eff, copy(pos), copy(frame))
-    L_conn = arc_length(connector)
-    s_end_eff = s_eff + L_conn
 
-    # Resolve spinnings local to this Subpath. The terminal connector is included
-    # as the last placed segment so a `Spinning` on `jumpto!`/`seal!` anchors a run
-    # exactly like any interior segment. If the first spinning anchor has
-    # is_continuous=true it is left pending for the PathBuilt build to fix up.
-    resolved, pending = _resolve_spinning_subpath_local(
-        vcat(placed, jumpto_placed), Float64(_qc_nominalize(s_end_eff)))
-    return SubpathBuilt(sub, placed, connector, jumpto_placed, resolved, pending)
+    # `:inherit` spin needs a predecessor; it can only be resolved by the
+    # vector build. A standalone build is by definition the first Subpath.
+    sub.spin_rate === :inherit && throw(ArgumentError(
+        "build(::Subpath): spin_rate=:inherit requires a predecessor; it is valid " *
+        "only for a non-first Subpath in build([...])."))
+    # `_spin_phi_at_s0 = 0.0` provisionally (correct for a first/standalone
+    # Subpath); `build(::Vector{SubpathBuilt})` overrides it for later Subpaths.
+    return SubpathBuilt(sub, placed, connector, jumpto_placed, sub.spin_rate, 0.0)
 end
 
 # -----------------------------------------------------------------------
-# Spinning resolution (per Subpath)
+# Spinning resolution (across Subpaths)
 # -----------------------------------------------------------------------
-# Walk placed segments in order (the terminal connector is the last one),
-# collect Spinning anchors from each segment's meta, and emit one
-# ResolvedSpinningRate per anchor. Each run extends from the anchor's segment
-# start to the next anchor's segment start, or to the end of the Subpath.
-# is_continuous=true on a non-first anchor takes its phi_0 from the prior run's
-# accumulated phase. is_continuous=true on the *first* anchor of a Subpath
-# leaves resolution pending — `build(::Vector{SubpathBuilt})` fixes it up by
-# inheriting from the prior Subpath.
 
 """
-    _collect_spinning_anchors(placed) -> Vector{Tuple{Float64, Spinning}}
+    _resolve_inherited_spin(sub::Subpath, prev_built::SubpathBuilt) -> Subpath
 
-Collect `(s_offset_eff, Spinning)` anchors from the placed segments' meta, in
-order. The terminal connector is an ordinary entry in `placed` (see
-[`_all_placed_segs`](@ref)) and is treated no differently from an interior
-segment.
+Resolve a `spin_rate = :inherit` Subpath against its already-built predecessor:
+copy the predecessor's `spin_rate`. Returns `sub` unchanged if it does not
+inherit. Throws if the predecessor has no spin (nothing to inherit).
 
-Throws if any single segment carries more than one `Spinning`.
+The phase `_spin_phi_at_s0` is fixed up separately by [`_resolve_spin_phase`](@ref).
 """
-function _collect_spinning_anchors(placed::Vector{PlacedSegment})
-    anchors = Tuple{Float64, Spinning}[]
-    for ps in placed
-        spinnings_here = Spinning[]
-        for m in segment_meta(ps.segment)
-            m isa Spinning && push!(spinnings_here, m)
-        end
-        if length(spinnings_here) > 1
-            throw(ArgumentError(
-                "Subpath build: segment at s_offset_eff = $(ps.s_offset_eff) carries " *
-                "$(length(spinnings_here)) Spinning meta entries; at most one is permitted"))
-        end
-        if !isempty(spinnings_here)
-            push!(anchors, (Float64(_qc_nominalize(ps.s_offset_eff)), spinnings_here[1]))
-        end
-    end
-    return anchors
+function _resolve_inherited_spin(sub::Subpath, prev_built::SubpathBuilt)
+    sub.spin_rate === :inherit || return sub
+    prev_built.spin_rate === nothing && throw(ArgumentError(
+        "spin_rate=:inherit: the previous Subpath has no spin (spin_rate=nothing), " *
+        "so there is no rate to inherit."))
+    return Subpath(
+        sub.meta, sub.start_point, sub.start_outgoing_tangent,
+        sub.start_outgoing_curvature, sub.segments, sub.jumpto_point,
+        sub.jumpto_incoming_tangent, sub.jumpto_incoming_curvature,
+        sub.jumpto_min_bend_radius, sub.jumpto_meta,
+        sub.jumpto_natural, sub.jumpto_natural_extra,
+        prev_built.spin_rate, sub._spin_phi_at_s0)
 end
 
 """
-    _resolve_spinning_subpath_local(placed, s_end)
-        -> (Vector{ResolvedSpinningRate}, pending_first::Bool)
+    _resolve_spin_phase(builts::Vector{SubpathBuilt}) -> Vector{SubpathBuilt}
 
-Resolve spinning runs for a single Subpath. `placed` is the full ordered list of
-placed segments including the terminal connector (see [`_all_placed_segs`](@ref)).
-
-Each run extends from its anchor's segment start to the next anchor's start, or
-to `s_end`. A non-first `is_continuous` anchor inherits `phi_0` from the prior
-run's accumulated phase. If the *first* anchor is `is_continuous`, its run is
-emitted with `phi_0 = NaN` as a sentinel and `pending_first = true`; the
-`PathBuilt`-level resolver later replaces it with the inherited value.
+Set each Subpath's `_spin_phi_at_s0` so spin phase is continuous across every
+Subpath boundary: `0.0` on the first Subpath, and
+`prev._spin_phi_at_s0 + ∫ prev.spin_rate · ds` on each later Subpath (a no-spin
+Subpath contributes `0` and carries the phase through unchanged).
 """
-function _resolve_spinning_subpath_local(placed::Vector{PlacedSegment},
-                                       s_end::Float64)
-    anchors = _collect_spinning_anchors(placed)
-    isempty(anchors) && return (ResolvedSpinningRate[], false)
-
-    n = length(anchors)
-    out = Vector{ResolvedSpinningRate}(undef, n)
-    prev_phi_0 = 0.0
-    prev_run_length = 0.0
-    prev_rate::Union{Float64, Function} = 0.0
-    pending_first = false
-
-    for i in 1:n
-        s_start_i, tw = anchors[i]
-        s_run_end = (i < n) ? anchors[i + 1][1] : s_end
-
-        if tw.is_continuous
-            if i == 1
-                # Defer to PathBuilt-level resolution.
-                pending_first = true
-                phi_0 = NaN
-            else
-                phi_0 = prev_phi_0 + _integrate_rate(prev_rate, 0.0, prev_run_length)
-            end
-        else
-            phi_0 = tw.phi_0
-        end
-
-        out[i] = ResolvedSpinningRate(s_start_i, s_run_end, tw.rate, phi_0)
-
-        prev_phi_0 = phi_0
-        prev_run_length = s_run_end - s_start_i
-        prev_rate = tw.rate
-    end
-
-    return (out, pending_first)
-end
-
-"""
-    _resolve_pending_continuous_spinning(builts) -> Vector{SubpathBuilt}
-
-Fix up cross-Subpath continuous spinning phase across an ordered `builts` list.
-
-Where a Subpath has `pending_continuous_first_spinning = true`, look up the
-prior Subpath's terminal spinning phase and rebuild its `resolved_spinning`
-list with the inherited `phi_0`. The first Subpath cannot be pending; throw if
-it is.
-"""
-function _resolve_pending_continuous_spinning(builts::Vector{SubpathBuilt})
-    n = length(builts)
-    out = Vector{SubpathBuilt}(undef, n)
-    for i in 1:n
+function _resolve_spin_phase(builts::Vector{SubpathBuilt})
+    out = Vector{SubpathBuilt}(undef, length(builts))
+    phi = 0.0
+    for i in eachindex(builts)
         b = builts[i]
-        if !b.pending_continuous_first_spinning
-            out[i] = b
-            continue
-        end
-        if i == 1
-            throw(ArgumentError(
-                "PathBuilt: first Subpath has Spinning(is_continuous=true) on its first " *
-                "anchor, but there is no prior Subpath to inherit phase from"))
-        end
-        prev = out[i - 1]
-        # Compute the prior Subpath's terminal phase: the last resolved spinning
-        # run's phi_0 plus integral over its length.
-        if isempty(prev.resolved_spinning)
-            throw(ArgumentError(
-                "PathBuilt: Subpath $i has pending continuous first spinning but " *
-                "Subpath $(i-1) has no spinning runs to inherit from"))
-        end
-        last_run = prev.resolved_spinning[end]
-        run_len  = last_run.s_eff_end - last_run.s_eff_start
-        phi_end  = last_run.phi_0 + _integrate_rate(last_run.rate, 0.0, run_len)
-
-        # Rebuild this Subpath's resolved_spinning list, replacing the first run's phi_0.
-        rs_old = b.resolved_spinning
-        rs_new = Vector{ResolvedSpinningRate}(undef, length(rs_old))
-        # First run: inherit phi_end. Then propagate forward through subsequent
-        # runs that were resolved with prev_phi_0 originating from the (NaN)
-        # first run — re-run the phi_0 chain from this corrected start.
-        prev_phi_0 = phi_end
-        prev_run_length = 0.0
-        prev_rate::Union{Float64, Function} = 0.0
-        for k in eachindex(rs_old)
-            r = rs_old[k]
-            if k == 1
-                phi_0 = phi_end
-            else
-                # Re-derive: was tw.is_continuous? We don't have the raw Spinning
-                # object handy, so detect by NaN propagation in the original
-                # resolution. The simple rule: if the original phi_0 isn't NaN
-                # and was deterministic (from tw.phi_0), keep it. If it was
-                # derived from prev_phi_0 chain (k > 1 and is_continuous), it
-                # would have been computed without the corrected base.
-                # To be safe, recompute: phi_0 = prev_phi_0 + ∫ prev_rate over prev_run_length
-                # only if the original is "close" to that expression. We
-                # cannot disambiguate without the source Spinning meta, so we
-                # walk the segments again below.
-                phi_0 = r.phi_0
-            end
-            rs_new[k] = ResolvedSpinningRate(r.s_eff_start, r.s_eff_end, r.rate, phi_0)
-            prev_phi_0 = phi_0
-            prev_run_length = r.s_eff_end - r.s_eff_start
-            prev_rate = r.rate
-        end
-
-        # If the first run's phi_0 was NaN and there are downstream is_continuous
-        # runs that inherited from it, those would also have been computed with
-        # prev_phi_0=NaN and need recomputation. Re-resolve from raw anchors with
-        # phi_end as the seed.
-        if any(r -> isnan(r.phi_0), rs_old) && length(rs_old) >= 2
-            anchors = _collect_spinning_anchors(_all_placed_segs(b))
-            # Recompute with first phi_0 = phi_end (forced is_continuous semantics)
-            n_a = length(anchors)
-            rs_new = Vector{ResolvedSpinningRate}(undef, n_a)
-            prev_phi_0 = phi_end
-            prev_run_length = 0.0
-            prev_rate = 0.0
-            # s_end for the runs is the same as the original
-            s_end = isempty(rs_old) ? 0.0 : rs_old[end].s_eff_end
-            for k in 1:n_a
-                s_start_k, tw = anchors[k]
-                s_run_end = (k < n_a) ? anchors[k + 1][1] : s_end
-                if tw.is_continuous
-                    if k == 1
-                        phi_0 = phi_end
-                    else
-                        phi_0 = prev_phi_0 + _integrate_rate(prev_rate, 0.0, prev_run_length)
-                    end
-                else
-                    phi_0 = tw.phi_0
-                end
-                rs_new[k] = ResolvedSpinningRate(s_start_k, s_run_end, tw.rate, phi_0)
-                prev_phi_0 = phi_0
-                prev_run_length = s_run_end - s_start_k
-                prev_rate = tw.rate
-            end
-        end
-
         out[i] = SubpathBuilt(b.subpath, b.placed_segments, b.jumpto_quintic_connector,
-                              b.jumpto_placed, rs_new, false)
+                              b.jumpto_placed, b.spin_rate, phi)
+        L = Float64(_qc_nominalize(arc_length(b)))
+        phi += _integrate_rate(b.spin_rate, 0.0, L)
     end
     return out
 end
@@ -1527,22 +1370,35 @@ end
     build(spb::SubpathBuilt)              → PathBuilt
 
 Stitch already-built `SubpathBuilt`s into a `PathBuilt`, validating that
-adjacent Subpaths' endpoint states agree, and resolving any cross-Subpath
-spinning continuity. The vector-of-Subpath form builds each first; the
-`Vector{SubpathBuilder}` convenience form freezes each builder to a `Subpath`
-before building; the single `SubpathBuilt` form wraps a length-1 PathBuilt.
+adjacent Subpaths' endpoint states agree, and resolving the continuous
+cross-Subpath spin phase (`_spin_phi_at_s0`). The vector-of-Subpath form builds
+each Subpath in order, resolving any `spin_rate = :inherit` against the prior
+built Subpath; the `Vector{SubpathBuilder}` convenience form freezes each
+builder to a `Subpath` before building; the single `SubpathBuilt` form wraps a
+length-1 PathBuilt.
+
+A directly-supplied `SubpathBuilt` can never hold `spin_rate = :inherit` (that
+would have errored at `build(::Subpath)`), so this form only needs the phase
+pass.
 """
 function build(builts::Vector{SubpathBuilt})
     isempty(builts) && throw(ArgumentError("PathBuilt: at least one SubpathBuilt required"))
     for i in 2:length(builts)
         _check_subpath_conformity(builts[i-1], builts[i].subpath, i)
     end
-    fixed = _resolve_pending_continuous_spinning(builts)
-    return PathBuilt(fixed)
+    return PathBuilt(_resolve_spin_phase(builts))
 end
 
-build(subpaths::Vector{Subpath}; perturb::Bool = false) =
-    build([build(sp; perturb) for sp in subpaths])
+function build(subpaths::Vector{Subpath}; perturb::Bool = false)
+    isempty(subpaths) && throw(ArgumentError("PathBuilt: at least one Subpath required"))
+    builts = Vector{SubpathBuilt}(undef, length(subpaths))
+    builts[1] = build(subpaths[1]; perturb)
+    for i in 2:length(subpaths)
+        resolved = _resolve_inherited_spin(subpaths[i], builts[i-1])
+        builts[i] = build(resolved; perturb)
+    end
+    return build(builts)
+end
 
 build(builders::Vector{SubpathBuilder}; perturb::Bool = false) =
     build(Subpath[Subpath(b) for b in builders]; perturb = perturb)
@@ -1646,18 +1502,16 @@ end
 """
     spinning_rate(b, s)
 
-Spinning rate (rad/m) at local arc length `s`, summed over all resolved
-spinning runs that contain `s`. Runs are disjoint by construction; the sum
-exists only as a robustness guard.
+Material spin rate (rad/m) at Subpath-local arc length `s`. The Subpath carries
+a single whole-length `spin_rate`: `nothing` → `0`; a constant `Float64`; or a
+`Function` evaluated at `s` (Subpath-local, `s = 0` at the Subpath start).
 """
 function spinning_rate(b::SubpathBuilt, s)
-    τ = zero(s isa AbstractFloat ? s : Float64(s))
-    for r in b.resolved_spinning
-        if r.s_eff_start <= s <= r.s_eff_end
-            τ += r.rate isa Function ? r.rate(s - r.s_eff_start) : r.rate
-        end
-    end
-    return τ
+    r = b.spin_rate
+    r === :inherit && error(
+        "spinning_rate: unresolved :inherit spin_rate; build via build([...]) first")
+    r === nothing && return zero(s isa AbstractFloat ? s : Float64(s))
+    return r isa Function ? r(s) : r
 end
 
 """
@@ -1884,17 +1738,10 @@ function total_spinning(
     end
     s_lo == s_hi && return 0.0
 
-    total = 0.0
-    rtolf = Float64(rtol)
-    atolf = Float64(atol)
-    for r in b.resolved_spinning
-        a = max(r.s_eff_start, s_lo)
-        bb = min(r.s_eff_end, s_hi)
-        bb <= a && continue
-        total += _integrate_rate(r.rate, a - r.s_eff_start, bb - r.s_eff_start;
-                                 rtol = rtolf, atol = atolf)
-    end
-    return total
+    # The Subpath carries one whole-length spin run with Subpath-local arc
+    # length, so the integral over [s_lo, s_hi] uses those endpoints directly.
+    return _integrate_rate(b.spin_rate, s_lo, s_hi;
+                           rtol = Float64(rtol), atol = Float64(atol))
 end
 
 """
@@ -2192,31 +2039,14 @@ function path_segment_breakpoints(b::SubpathBuilt)
 end
 
 """
-    path_spinning_breakpoints(b::SubpathBuilt) -> Vector{Float64}
-
-Return the normalized arc-length breakpoints at every spinning-run boundary
-(plus the path endpoints).
-"""
-function path_spinning_breakpoints(b::SubpathBuilt)
-    points = Float64[0.0, Float64(_qc_nominalize(arc_length(b)))]
-    for r in b.resolved_spinning
-        push!(points, r.s_eff_start)
-        push!(points, r.s_eff_end)
-    end
-    return normalize_breakpoints(points)
-end
-
-"""
     breakpoints(path) -> Vector{Float64}
 
-Return the merged, normalized arc-length breakpoints of a built `path`: the
-union of segment and spinning-run boundaries. The propagator never steps
-across one of these.
+Return the normalized arc-length segment breakpoints of a built `path`. Spinning
+is constant or smooth over the whole Subpath, so it introduces no interior
+breakpoints; Subpath boundaries are already segment breakpoints. The propagator
+never steps across one of these.
 """
-function breakpoints(b::SubpathBuilt)
-    return normalize_breakpoints(vcat(path_segment_breakpoints(b),
-                                      path_spinning_breakpoints(b)))
-end
+breakpoints(b::SubpathBuilt) = path_segment_breakpoints(b)
 
 """
     sample(path, s_values) -> Vector{NamedTuple}

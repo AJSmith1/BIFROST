@@ -58,8 +58,8 @@ mutable struct _PathProxy
     current::Union{SubpathBuilder, Nothing}
 end
 
-function PathSpecBuilder()
-    sb = SubpathBuilder(); start!(sb)
+function PathSpecBuilder(; spin_rate = nothing)
+    sb = SubpathBuilder(); start!(sb; spin_rate = spin_rate)
     return _PathProxy(SubpathBuilder[], sb)
 end
 

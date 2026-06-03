@@ -429,9 +429,8 @@ function demo_helix_mcm_spinning(;
     # path-geometry-plot.jl so the dispatch on `PathGeometry.SubpathBuilt`
     # in `write_path_geometry_plot3d` resolves correctly.
     PG = PathGeometry
-    sb = PG.SubpathBuilder(); PG.start!(sb)
-    PG.straight!(sb; length = 1.0,
-                 meta = [PG.Nickname("lead-in"), PG.Spinning(; rate = 2π)])
+    sb = PG.SubpathBuilder(); PG.start!(sb; spin_rate = 2π)
+    PG.straight!(sb; length = 1.0, meta = [PG.Nickname("lead-in")])
     PG.helix!(sb; radius = 0.5, pitch = 0.05, turns = 4.0, axis_angle = 0.0,
               meta = [PG.Nickname("helix")])
     PG.straight!(sb; length = 1.0, meta = [PG.Nickname("lead-out")])
@@ -538,7 +537,7 @@ const DEMO_INDEX = [
     (group = "modify", fn = demo_modify_helix_turns_mul, kwargs = NamedTuple(),
      desc = "MCMmul(:turns) on the helix of a 4-segment baseline."),
     (group = "spinning", fn = demo_helix_mcm_spinning, kwargs = NamedTuple(),
-     desc = "Helix with a constant material spinning rate applied via Spinning meta. " *
+     desc = "Helix with a constant material spinning rate set via start!(; spin_rate). " *
             "Demonstrates that material spinning propagates through the geometry " *
             "layer's Frenet frame independent of segment torsion."),
     (group = "adaptive-step", fn = demo_adaptive_step_doubling, kwargs = NamedTuple(),

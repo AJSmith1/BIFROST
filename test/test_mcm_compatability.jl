@@ -276,8 +276,8 @@ end
     end
 end
 
-function _build_mcm_path(f::Function)
-    sb = SubpathBuilder(); start!(sb)
+function _build_mcm_path(f::Function; spin_rate = nothing)
+    sb = SubpathBuilder(); start!(sb; spin_rate = spin_rate)
     f(sb)
     # seal! ends at the natural exit without recording an endpoint, so a
     # Particles-valued natural exit flows through build directly — no
@@ -383,9 +383,8 @@ end
         T_nom = 297.15
         T_ref = T_nom ± 2.0
 
-        path = _build_mcm_path() do sb
+        path = _build_mcm_path(; spin_rate = 1.0) do sb
             bend!(sb; radius = 0.05, angle = π / 2, axis_angle = 0.1)
-            # TODO: spinning refactor — Spinning(...) meta pending
         end
         fiber = Fiber(path; cross_section = xs, T_ref_K = T_ref)
 
@@ -411,27 +410,24 @@ end
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ▓▓▓  MCM path with Spinning overlay — gating + propagator end-to-end  ▓▓▓
+# ▓▓▓  MCM path with material spinning — gating + propagator end-to-end  ▓▓▓
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # These tests exercise the *primary* MCM consumer (propagate_fiber) on a fiber
-# whose centerline geometry carries Particles uncertainty AND whose meta
-# carries a deterministic Spinning. Tier 1 makes build() succeed for this combo;
+# whose centerline geometry carries Particles uncertainty AND whose Subpath
+# carries a deterministic spin_rate. Tier 1 makes build() succeed for this combo;
 # Tier 2 hardens accumulators and visualization-layer queries.
 
-@testset "MCM :: build() succeeds for MCM segment + Spinning meta" begin
+@testset "MCM :: build() succeeds for MCM segment + spin_rate" begin
     MonteCarloMeasurements.unsafe_comparisons(true)
     try
-        path = _build_mcm_path() do sb
-            bend!(sb; radius = 0.05 ± 0.005, angle = π/2,
-                  meta = [Spinning(; rate = 1.0)])
+        path = _build_mcm_path(; spin_rate = 1.0) do sb
+            bend!(sb; radius = 0.05 ± 0.005, angle = π/2)
         end
         @test arc_length(path.placed_segments[1].segment) isa Particles
-        @test length(path.resolved_spinning) == 1
-        @test path.resolved_spinning[1].rate == 1.0
-        # Spinning anchor positions are nominalized Float64 by design.
-        @test path.resolved_spinning[1].s_eff_start isa Float64
-        @test path.resolved_spinning[1].s_eff_end   isa Float64
+        @test path.spin_rate == 1.0
+        # Spinning is MCM-clean: the rate is a plain Float64.
+        @test path.spin_rate isa Float64
     finally
         MonteCarloMeasurements.unsafe_comparisons(false)
     end
@@ -440,10 +436,9 @@ end
 @testset "MCM :: breakpoints are Float64 even for MCM paths" begin
     MonteCarloMeasurements.unsafe_comparisons(true)
     try
-        path = _build_mcm_path() do sb
+        path = _build_mcm_path(; spin_rate = 2.0) do sb
             bend!(sb; radius = 0.05 ± 0.005, angle = π/2)
-            bend!(sb; radius = 0.04, angle = π/4,
-                  meta = [Spinning(; rate = 2.0)])
+            bend!(sb; radius = 0.04, angle = π/4)
         end
         bps = breakpoints(path)
         @test eltype(bps) == Float64
@@ -456,7 +451,7 @@ end
     end
 end
 
-@testset "MCM :: propagate_fiber lifts Particles into Jones matrix on MCM + Spinning path" begin
+@testset "MCM :: propagate_fiber lifts Particles into Jones matrix on MCM + spinning path" begin
     # T-GUARDRAIL: end-to-end propagate_fiber under MCM Particles. After the
     # Pass-1 architecture change, the terminal connector inherits Particles
     # K0 from the upstream bend, which makes the propagator's adaptive step
@@ -486,9 +481,8 @@ end
 @testset "MCM :: total_spinning returns Float64 with default endpoints (Tier 2.1)" begin
     MonteCarloMeasurements.unsafe_comparisons(true)
     try
-        path = _build_mcm_path() do sb
-            bend!(sb; radius = 0.05 ± 0.005, angle = π/2,
-                  meta = [Spinning(; rate = 1.0)])
+        path = _build_mcm_path(; spin_rate = 1.0) do sb
+            bend!(sb; radius = 0.05 ± 0.005, angle = π/2)
         end
         # Default endpoints used to crash on Float64(::Particles); now nominalize.
         Ω = total_spinning(path)

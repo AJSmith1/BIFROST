@@ -181,6 +181,7 @@ function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection
         sub.jumpto_incoming_tangent, sub.jumpto_incoming_curvature,
         sub.jumpto_min_bend_radius, _meta_without(sub.jumpto_meta, :T_K),
         sub.jumpto_natural, sub.jumpto_natural_extra,
+        sub.spin_rate, sub._spin_phi_at_s0,
     )
     return (resolved, jumpto_target_length)
 end
@@ -191,12 +192,16 @@ function _build_perturbed(sub::Subpath, cross_section::FiberCrossSection, T_ref_
 end
 
 function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSection, T_ref_K)
-    builts = SubpathBuilt[
-        let (resolved, target) = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
-            build(resolved; perturb = true, jumpto_target_length = target)
-        end
-        for sub in subs
-    ]
+    isempty(subs) && throw(ArgumentError("Fiber: at least one Subpath required"))
+    # Build in order so `spin_rate = :inherit` resolves against the prior
+    # thermal+perturbed built Subpath before this one is built.
+    builts = Vector{SubpathBuilt}(undef, length(subs))
+    for i in eachindex(subs)
+        sub = i == 1 ? subs[i] :
+              PathGeometry._resolve_inherited_spin(subs[i], builts[i-1])
+        resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
+        builts[i] = build(resolved; perturb = true, jumpto_target_length = target)
+    end
     return build(builts)
 end
 
