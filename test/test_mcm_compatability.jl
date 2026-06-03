@@ -495,7 +495,7 @@ end
             bend!(sb; radius = 0.05 ± 0.005, angle = π/2,
                   meta = [Spinning(; rate = 1.0)])
         end
-        # Default endpoints used to crash on Float64(::Particles); now nominalize.
+        # Default endpoints use nominal arc length for an MCM-valued path.
         Ω = total_spinning(path)
         @test Ω isa Float64
         # Spinning rate * nominal arc length.

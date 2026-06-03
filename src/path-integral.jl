@@ -447,10 +447,9 @@ end
 
 Adaptive step-doubling controls for the `path-integral.jl` propagators.
 
-The fields group every numerical tolerance and step control that was previously
-passed as a loose keyword argument, so they travel together as one explicit
-input. They are *not* hidden globals: every propagator takes a
-`params::SolverParams` keyword that defaults to `SolverParams()`.
+Pass a `SolverParams` value through the `params` keyword to set the tolerances,
+initial and maximum step sizes, minimum-step guard, and step-size update limits
+used by interval, piecewise, and fiber propagation.
 
 `h_init` and `h_max` default to `nothing`, meaning "derive from the interval":
 the initial step becomes `(s1 - s0) / 100` and the maximum step `s1 - s0`. Pass
@@ -460,7 +459,7 @@ All fields are `Float64` solver controls and never carry uncertainty, so this
 struct sits outside the MCM contract; `MonteCarloMeasurements.Particles` live
 only on the physical inputs.
 
-Defaults reproduce the historical loose-keyword behavior:
+Default values:
 
 | Field        | Default   | Meaning                                  |
 | ------------ | --------- | ---------------------------------------- |
