@@ -48,7 +48,9 @@ Subpath must call `start!` before any segment and seal exactly once at the end
 Spinning is attached as per-segment meta via `Spinning <: AbstractMeta`.
 A `Spinning` placed in a segment's `meta` vector starts a spinning run at that
 segment's start and continues until the next `Spinning`-bearing segment, or
-until the Subpath ends.
+until the Subpath ends. The terminal `jumpto!`/`seal!` connector carries `meta`
+too and is treated as the Subpath's last segment, so a `Spinning` on the seal
+starts a run over the connector just like one on any interior segment.
 
 `rate` may be a `Real` (constant rad/m) or a `Function` `rate(s_local)`. A
 `Spinning` with `is_continuous = true` placed on the first spinning anchor of a
@@ -899,10 +901,12 @@ end
 Seal the Subpath end by bending toward a global target `point`, storing the
 terminal connector spec on the builder.
 
-`meta` attaches annotations to the terminal connector. The geometry layer does
-not interpret them; a consuming layer can (e.g. the fiber reads a thermal
-annotation and expands the connector to land at `point` with a scaled arc length
-— see `build`'s `jumpto_target_length`).
+`meta` attaches annotations to the terminal connector, which is placed and
+queried exactly like any interior segment: a `Spinning` here starts a spinning
+run over the connector (see [`Spinning`](@ref)). Meta the geometry layer does
+not recognize is carried through for a consuming layer (e.g. the fiber reads a
+thermal annotation and expands the connector to land at `point` with a scaled
+arc length — see `build`'s `jumpto_target_length`).
 
 Throws if `start!` was not called, or if the builder is already sealed. See
 also [`seal!`](@ref) to end at the natural exit without bending.
@@ -928,7 +932,7 @@ function jumpto!(b::SubpathBuilder;
 end
 
 """
-    seal!(builder; extra=0.0)
+    seal!(builder; extra=0.0, meta=AbstractMeta[])
 
 Seal the Subpath at its **natural exit** — the position and tangent at the end
 of the last interior segment — with no terminal connector bending. This is the
@@ -938,11 +942,17 @@ toward a global target with `jumpto!`.
 `extra > 0` appends a straight lead-out of `extra` meters along the natural exit
 tangent. `extra == 0` (default) produces a true zero-length terminal connector.
 
+`meta` attaches annotations to the terminal connector, which is placed and
+queried like any interior segment: a `Spinning` here starts a spinning run over
+the lead-out (see [`Spinning`](@ref)). A zero-length seal still carries the meta,
+but its run is zero-length.
+
 Like `jumpto!`, this seals the builder: no further segments may be added, and a
 builder may be sealed exactly once (by either `seal!` or `jumpto!`). Throws if
 `start!` was not called, if the builder is already sealed, or if `extra < 0`.
 """
-function seal!(b::SubpathBuilder; extra::Real = 0.0)
+function seal!(b::SubpathBuilder; extra::Real = 0.0,
+               meta::AbstractVector{<:AbstractMeta} = AbstractMeta[])
     isnothing(b.start_point) &&
         throw(ArgumentError("SubpathBuilder: call start!() before seal!()"))
     (!isnothing(b.jumpto_point) || b.jumpto_natural) &&
@@ -951,6 +961,7 @@ function seal!(b::SubpathBuilder; extra::Real = 0.0)
         throw(ArgumentError("SubpathBuilder: seal!() extra must be non-negative; got $extra"))
     b.jumpto_natural = true
     b.jumpto_natural_extra = Float64(extra)
+    b.jumpto_meta = Vector{AbstractMeta}(meta)
     return b
 end
 
@@ -1207,7 +1218,8 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
         # true zero-length connector. Both are degenerate-safe in the
         # QuinticConnector query path (zero-speed → local ẑ tangent).
         connector = _build_straight_connector(sub.jumpto_natural_extra,
-                                              eltype(K_in_global))
+                                              eltype(K_in_global);
+                                              meta = sub.jumpto_meta)
     else
         # Destination is global (sub.jumpto_point); transform to local frame to
         # call _build_quintic_connector.
@@ -1227,7 +1239,8 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
         # post-hoc; with no target it drives the handle selection.
         connector = _build_quintic_connector(p1_local, t_hat_out, K0_local, K1_local;
                                              min_bend_radius    = sub.jumpto_min_bend_radius,
-                                             target_path_length = jumpto_target_length)
+                                             target_path_length = jumpto_target_length,
+                                             meta               = sub.jumpto_meta)
     end
     # PlacedSegment wrapper for the terminal connector: anchor at the
     # position/frame at the end of the interior segments. Stored alongside
@@ -1236,37 +1249,38 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
     L_conn = arc_length(connector)
     s_end_eff = s_eff + L_conn
 
-    # Resolve spinnings local to this Subpath. If the first spinning anchor has
+    # Resolve spinnings local to this Subpath. The terminal connector is included
+    # as the last placed segment so a `Spinning` on `jumpto!`/`seal!` anchors a run
+    # exactly like any interior segment. If the first spinning anchor has
     # is_continuous=true it is left pending for the PathBuilt build to fix up.
-    resolved, pending = _resolve_spinning_subpath_local(placed, connector,
-                                                      Float64(_qc_nominalize(s_eff)),
-                                                      Float64(_qc_nominalize(s_end_eff)))
+    resolved, pending = _resolve_spinning_subpath_local(
+        vcat(placed, jumpto_placed), Float64(_qc_nominalize(s_end_eff)))
     return SubpathBuilt(sub, placed, connector, jumpto_placed, resolved, pending)
 end
 
 # -----------------------------------------------------------------------
 # Spinning resolution (per Subpath)
 # -----------------------------------------------------------------------
-# Walk placed segments in order, collect Spinning anchors from each segment's
-# meta, and emit one ResolvedSpinningRate per anchor. Each run extends from the
-# anchor's segment start to the next anchor's segment start, or to the end
-# of the Subpath. is_continuous=true on a non-first anchor takes its phi_0
-# from the prior run's accumulated phase. is_continuous=true on the *first*
-# anchor of a Subpath leaves resolution pending — `build(::Vector{SubpathBuilt})`
-# fixes it up by inheriting from the prior Subpath.
+# Walk placed segments in order (the terminal connector is the last one),
+# collect Spinning anchors from each segment's meta, and emit one
+# ResolvedSpinningRate per anchor. Each run extends from the anchor's segment
+# start to the next anchor's segment start, or to the end of the Subpath.
+# is_continuous=true on a non-first anchor takes its phi_0 from the prior run's
+# accumulated phase. is_continuous=true on the *first* anchor of a Subpath
+# leaves resolution pending — `build(::Vector{SubpathBuilt})` fixes it up by
+# inheriting from the prior Subpath.
 
 """
-    _collect_spinning_anchors(placed, connector, connector_s_offset)
+    _collect_spinning_anchors(placed) -> Vector{Tuple{Float64, Spinning}}
 
 Collect `(s_offset_eff, Spinning)` anchors from the placed segments' meta, in
-order.
+order. The terminal connector is an ordinary entry in `placed` (see
+[`_all_placed_segs`](@ref)) and is treated no differently from an interior
+segment.
 
-Throws if any single segment carries more than one `Spinning`. The terminal
-connector exposes no `Spinning` slot and is skipped.
+Throws if any single segment carries more than one `Spinning`.
 """
-function _collect_spinning_anchors(placed::Vector{PlacedSegment},
-                                connector::QuinticConnector,
-                                connector_s_offset::Float64)
+function _collect_spinning_anchors(placed::Vector{PlacedSegment})
     anchors = Tuple{Float64, Spinning}[]
     for ps in placed
         spinnings_here = Spinning[]
@@ -1282,16 +1296,15 @@ function _collect_spinning_anchors(placed::Vector{PlacedSegment},
             push!(anchors, (Float64(_qc_nominalize(ps.s_offset_eff)), spinnings_here[1]))
         end
     end
-    # The terminal connector also carries a meta vector but in the new design
-    # it has no `meta` slot exposed for Spinning — kept structural. Skip.
     return anchors
 end
 
 """
-    _resolve_spinning_subpath_local(placed, connector, connector_s_offset, s_end)
+    _resolve_spinning_subpath_local(placed, s_end)
         -> (Vector{ResolvedSpinningRate}, pending_first::Bool)
 
-Resolve spinning runs for a single Subpath.
+Resolve spinning runs for a single Subpath. `placed` is the full ordered list of
+placed segments including the terminal connector (see [`_all_placed_segs`](@ref)).
 
 Each run extends from its anchor's segment start to the next anchor's start, or
 to `s_end`. A non-first `is_continuous` anchor inherits `phi_0` from the prior
@@ -1300,10 +1313,8 @@ emitted with `phi_0 = NaN` as a sentinel and `pending_first = true`; the
 `PathBuilt`-level resolver later replaces it with the inherited value.
 """
 function _resolve_spinning_subpath_local(placed::Vector{PlacedSegment},
-                                       connector::QuinticConnector,
-                                       connector_s_offset::Float64,
                                        s_end::Float64)
-    anchors = _collect_spinning_anchors(placed, connector, connector_s_offset)
+    anchors = _collect_spinning_anchors(placed)
     isempty(anchors) && return (ResolvedSpinningRate[], false)
 
     n = length(anchors)
@@ -1412,7 +1423,7 @@ function _resolve_pending_continuous_spinning(builts::Vector{SubpathBuilt})
         # prev_phi_0=NaN and need recomputation. Re-resolve from raw anchors with
         # phi_end as the seed.
         if any(r -> isnan(r.phi_0), rt_old) && length(rt_old) >= 2
-            anchors = _collect_spinning_anchors(b.placed_segments, b.jumpto_quintic_connector, 0.0)
+            anchors = _collect_spinning_anchors(_all_placed_segs(b))
             # Recompute with first phi_0 = phi_end (forced is_continuous semantics)
             n_a = length(anchors)
             rt_new = Vector{ResolvedSpinningRate}(undef, n_a)

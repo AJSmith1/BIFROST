@@ -684,6 +684,75 @@ end
     @test arc_length(b) ∈ bps
 end
 
+@testset "Spinning — seal! lead-out carries a spinning run" begin
+    # T-PHYSICS: a Spinning on the natural seal anchors a run that begins at the
+    # connector (the lead-out) and extends to the Subpath end. Over the interior
+    # there is no spinning; over the lead-out the rate is the constant τ, so the
+    # integrated spinning equals τ·extra.
+    τ = 2.0
+    L_int = 1.0
+    L_extra = 0.5
+    sb = SubpathBuilder(); start!(sb)
+    straight!(sb; length = L_int)
+    seal!(sb; extra = L_extra, meta = [Spinning(; rate = τ)])
+    b = build(sb)
+    @test length(b.resolved_spinning) == 1
+    @test isapprox(b.resolved_spinning[1].s_eff_start, L_int; atol = 1e-9)
+    @test spinning_rate(b, 0.5 * L_int) == 0.0              # interior: no spinning
+    @test spinning_rate(b, L_int + 0.5 * L_extra) == τ      # lead-out: spinning τ
+    @test isapprox(total_spinning(b; s_start = L_int, s_end = L_int + L_extra),
+                   τ * L_extra; atol = 1e-9)
+end
+
+@testset "Spinning — jumpto! connector carries a spinning run" begin
+    # T-GUARDRAIL: a Spinning on the terminal jumpto! connector anchors a run
+    # over the connector, handled exactly like one on an interior segment. The
+    # run starts at the connector's arc-length offset and the rate is reported
+    # throughout the connector region.
+    τ = 1.25
+    sb = SubpathBuilder(); start!(sb)
+    straight!(sb; length = 1.0)
+    # Bend the terminal connector toward an off-axis target so it has real length.
+    jumpto!(sb; point = (0.3, 0.0, 1.4), incoming_tangent = (1.0, 0.0, 0.0),
+            meta = [Spinning(; rate = τ)])
+    b = build(sb)
+    @test length(b.resolved_spinning) == 1
+    s_conn = Float64(_qc_nominalize(b.jumpto_placed.s_offset_eff))
+    L = arc_length(b)
+    @test L > s_conn                                        # connector has length
+    @test isapprox(b.resolved_spinning[1].s_eff_start, s_conn; atol = 1e-9)
+    @test spinning_rate(b, 0.5) == 0.0                      # interior: no spinning
+    @test spinning_rate(b, 0.5 * (s_conn + L)) == τ         # within the connector
+end
+
+@testset "Spinning — interior run ends where the seal's run begins" begin
+    # T-GUARDRAIL: an interior Spinning and a seal Spinning produce two runs; the
+    # interior run terminates at the connector's start (the next anchor), and the
+    # seal run covers the lead-out.
+    sb = SubpathBuilder(); start!(sb)
+    straight!(sb; length = 1.0, meta = [Spinning(; rate = 1.0)])
+    seal!(sb; extra = 0.5, meta = [Spinning(; rate = 3.0)])
+    b = build(sb)
+    @test length(b.resolved_spinning) == 2
+    @test isapprox(b.resolved_spinning[1].s_eff_end, 1.0; atol = 1e-9)
+    @test isapprox(b.resolved_spinning[2].s_eff_start, 1.0; atol = 1e-9)
+    @test spinning_rate(b, 0.5) == 1.0                      # interior run
+    @test spinning_rate(b, 1.25) == 3.0                     # seal run over lead-out
+end
+
+@testset "Spinning — is_continuous seal run inherits interior phase" begin
+    # T-PHYSICS: a seal Spinning with is_continuous=true inherits phi_0 from the
+    # interior run's accumulated phase, exactly as a segment-to-segment handoff.
+    L1 = 1.5
+    τ1 = 2.0
+    sb = SubpathBuilder(); start!(sb)
+    straight!(sb; length = L1, meta = [Spinning(; rate = τ1, phi_0 = 0.5)])
+    seal!(sb; extra = 1.0, meta = [Spinning(; rate = 1.0, is_continuous = true)])
+    b = build(sb)
+    @test b.resolved_spinning[1].phi_0 == 0.5
+    @test isapprox(b.resolved_spinning[2].phi_0, 0.5 + τ1 * L1; atol = 1e-12)
+end
+
 # -----------------------------------------------------------------------
 # Path measures
 # -----------------------------------------------------------------------
