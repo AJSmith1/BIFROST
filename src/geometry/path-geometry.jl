@@ -1242,7 +1242,7 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
     jumpto_placed = PlacedSegment(connector, s_eff, copy(pos), copy(frame))
 
     # `:inherit` spin needs a predecessor; it can only be resolved by the
-    # vector build. A standalone build is by definition the first Subpath.
+    # vector build. 
     sub.spin_rate === :inherit && throw(ArgumentError(
         "build(::Subpath): spin_rate=:inherit requires a predecessor; it is valid " *
         "only for a non-first Subpath in build([...])."))
