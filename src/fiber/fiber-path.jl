@@ -196,7 +196,7 @@ function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSectio
     # Build sequentially so `:inherit` start fields resolve from the prior built
     # (thermally expanded, perturbed) endpoint — keeping the chain connected under
     # thermal expansion. Inherited starts must be resolved before thermal
-    # resolution, which itself probe-builds the Subpath standalone (issue #51).
+    # resolution, which itself probe-builds the Subpath standalone.
     isempty(subs) && throw(ArgumentError("PathBuilt: at least one Subpath required"))
     builts = Vector{SubpathBuilt}(undef, length(subs))
     for i in eachindex(subs)
