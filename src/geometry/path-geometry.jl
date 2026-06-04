@@ -1505,6 +1505,21 @@ function _find_placed_segment(b::SubpathBuilt, s)
 end
 
 """
+    local_segment(b::SubpathBuilt, s) -> AbstractPathSegment
+    local_segment(p::PathBuilt, s)    -> AbstractPathSegment
+
+Return the `AbstractPathSegment` (interior segment or terminal connector)
+containing arc length `s`, retaining its meta. A point-like query sibling of
+`curvature`/`twist_rate`/`position`; consuming layers use it to recover
+per-segment annotations (e.g. the fiber's `:T_K`) at query time.
+"""
+local_segment(b::SubpathBuilt, s::Real) = _find_placed_segment(b, s)[1].segment
+function local_segment(p::PathBuilt, s::Real)
+    sb, s_local = _find_subpath(p, s)
+    return local_segment(sb, s_local)
+end
+
+"""
     _local_to_global(ps::PlacedSegment, v_local) -> AbstractVector
 
 Rotate a local-frame vector into global coordinates via the placed segment's

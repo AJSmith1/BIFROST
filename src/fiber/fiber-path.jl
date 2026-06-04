@@ -78,37 +78,29 @@ function bend_components(path::Union{SubpathBuilt, PathBuilt}, s::Real)
     return (kx = κ, ky = z, k2 = κ * κ)
 end
 
-struct Fiber{P,T,S,ST}
+struct Fiber{P,T,S}
     path::P
     cross_section::FiberCrossSection
     T_ref_K::T
     s_start::S
     s_end::S
-    # Per-placed-segment temperature derived from `:T_K` (fiber-only): `nothing`
-    # when no segment carries `:T_K` (then `temperature(f, s) ≡ T_ref_K`), else
-    # a flat vector aligned with `_all_placed_segs` for each built subpath in
-    # path order. This is intentionally segment-indexed; `s` is only meaningful
-    # after the geometry has been built.
-    segment_temperatures::ST
 end
 
 function Fiber(
     path::Union{SubpathBuilt, PathBuilt};
     cross_section::FiberCrossSection,
     T_ref_K = DEFAULT_T_REF_K,
-    segment_temperatures = nothing,
 )
     s_start_val = 0.0
     s_end_val   = Float64(_qc_nominalize(arc_length(path)))
     s_start, s_end = promote(s_start_val, s_end_val)
     @assert s_end > s_start "Fiber requires s_end > s_start"
-    return Fiber{typeof(path),typeof(T_ref_K),typeof(s_start),typeof(segment_temperatures)}(
+    return Fiber{typeof(path),typeof(T_ref_K),typeof(s_start)}(
         path,
         cross_section,
         T_ref_K,
         s_start,
         s_end,
-        segment_temperatures,
     )
 end
 
@@ -117,11 +109,16 @@ end
 # ----------------------------
 #
 # `:T_K` is a foreign meta to the geometry layer (it cannot be resolved without a
-# material). The fiber is its sole interpreter: it converts `:T_K` (a temperature
-# excursion ΔT) into an isotropic length scaling `τ = 1 + α_lin·ΔT` using
-# `α_lin = cte(cladding_material, T_ref_K)`, bakes that into the affected
-# segments, strips `:T_K`, and lets the geometry `build(...; perturb=true)` apply
-# any remaining field-level MCM. This is the *only* place `:T_K` is named.
+# material). The fiber is its sole interpreter, and `:T_K` plays a dual role: it
+# sets the segment's optical temperature `T_ref_K + ΔT` (consumed by the
+# birefringence generators) *and* an isotropic thermal expansion of its length.
+# At build time the fiber converts `:T_K` (a temperature excursion ΔT) into a
+# length scaling `τ = 1 + α_lin·ΔT` using `α_lin = cte(cladding_material,
+# T_ref_K)`, bakes that into the affected segments, and lets the geometry
+# `build(...; perturb=true)` apply any remaining field-level MCM. Crucially it
+# *leaves `:T_K` on the segment* (the geometry layer carries foreign meta inertly),
+# so `temperature(f, s)` can recover ΔT on demand at query time — no thermal state
+# is stored on `Fiber`. This is the *only* place `:T_K` is named.
 
 # ΔT for a segment from its additive `:T_K` meta, or `nothing` when it carries
 # none (the additive combine of 0.0 returns the unchanged baseline).
@@ -150,13 +147,12 @@ function _validate_seal_meta(sub::Subpath)
 end
 
 # Resolve a Subpath's `:T_K` meta into geometry: scale each thermal interior
-# segment's length-fields by τ and strip its `:T_K`. If the terminal `jumpto!`
+# segment's length-fields by τ while *retaining* its `:T_K` (the segment keeps it
+# as a temperature record for `temperature(f, s)`). If the terminal `jumpto!`
 # connector carries `:T_K`, also compute its thermal target arc length (issue
 # #33): the nominal connector length L0 scaled by τ_seal, re-solved to the fixed
-# endpoint by `build`. Returns the resolved Subpath, that target length (or
-# `nothing`), and the per-placed-segment ΔT excursions in placed order (interior
-# segments then terminal connector) — `nothing` when nothing is thermal — so the
-# fiber can record each segment's local temperature `T_ref_K + ΔT`.
+# endpoint by `build`. Returns the resolved Subpath and that target length (or
+# `nothing`).
 function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection, T_ref_K)
     _validate_seal_meta(sub)   # reject unsupported MCM on the terminal connector
     seal_ΔT     = _seal_delta_T(sub)
@@ -164,18 +160,13 @@ function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection
 
     # Skip cte (and any thermal work) entirely when nothing is thermal, so a
     # non-thermal fiber on a cladding with no defined CTE still builds.
-    (interior_TK || seal_ΔT !== nothing) || return (sub, nothing, nothing)
-
-    # Per-placed-segment ΔT, aligned with the built placed segments (interior in
-    # authored order, then the terminal connector).
-    deltaT = Any[_segment_delta_T(seg) for seg in sub.segments]
-    push!(deltaT, seal_ΔT)
+    (interior_TK || seal_ΔT !== nothing) || return (sub, nothing)
 
     α_lin = cte(cross_section.cladding_material, T_ref_K)
     new_segments = AbstractPathSegment[
         let ΔT = _segment_delta_T(seg)
             ΔT === nothing ? seg :
-                _scale_length_fields(seg, 1 + α_lin * ΔT, _meta_without(seg, :T_K))
+                _scale_length_fields(seg, 1 + α_lin * ΔT, segment_meta(seg))
         end
         for seg in sub.segments
     ]
@@ -194,39 +185,17 @@ function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection
         sub.meta, sub.start_point, sub.start_outgoing_tangent,
         sub.start_outgoing_curvature, new_segments, sub.jumpto_point,
         sub.jumpto_incoming_tangent, sub.jumpto_incoming_curvature,
-        sub.jumpto_min_bend_radius, _meta_without(sub.jumpto_meta, :T_K),
+        sub.jumpto_min_bend_radius, sub.jumpto_meta,
         sub.jumpto_twist,
         sub.jumpto_natural, sub.jumpto_natural_extra,
         sub.spin_rate, sub._spin_phi_at_s0,
     )
-    return (resolved, jumpto_target_length, deltaT)
-end
-
-# Assemble the per-placed-segment temperature vector from the matching per-Subpath
-# ΔT vectors (each `nothing` or aligned with that Subpath's placed segments).
-# Returns `nothing` when no Subpath is thermal (so `temperature(f, s) ≡ T_ref_K`),
-# else a flat vector in path order. Entries are kept as-stored (no coercion) so a
-# `Particles` ΔT propagates.
-function _build_segment_temperatures(segment_counts, deltaTs, T_ref_K)
-    any(!isnothing, deltaTs) || return nothing
-    vals = Any[]
-    for k in eachindex(segment_counts)
-        dT = deltaTs[k]
-        for j in Base.OneTo(segment_counts[k])
-            δ = dT === nothing ? nothing : dT[j]
-            push!(vals, δ === nothing ? T_ref_K : T_ref_K + δ)
-        end
-    end
-    return vals
+    return (resolved, jumpto_target_length)
 end
 
 function _build_perturbed(sub::Subpath, cross_section::FiberCrossSection, T_ref_K)
-    resolved, target, deltaT = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
-    segment_counts = (length(resolved.segments) + 1,)
-    built = build(resolved; perturb = true, jumpto_target_length = target)
-    segment_temperatures = _build_segment_temperatures(segment_counts, (deltaT,),
-                                                       T_ref_K)
-    return built, segment_temperatures
+    resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
+    return build(resolved; perturb = true, jumpto_target_length = target)
 end
 
 function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSection, T_ref_K)
@@ -234,20 +203,13 @@ function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSectio
     # Build in order so `spin_rate = :inherit` resolves against the prior
     # thermal+perturbed built Subpath before this one is built.
     builts = Vector{SubpathBuilt}(undef, length(subs))
-    deltaTs = Vector{Any}(undef, length(subs))
-    segment_counts = Vector{Int}(undef, length(subs))
     for i in eachindex(subs)
         sub = i == 1 ? subs[i] :
               PathGeometry._resolve_inherited_spin(subs[i], builts[i-1])
-        resolved, target, dT = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
-        segment_counts[i] = length(resolved.segments) + 1
+        resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
         builts[i] = build(resolved; perturb = true, jumpto_target_length = target)
-        deltaTs[i] = dT
     end
-    path = build(builts)
-    segment_temperatures = _build_segment_temperatures(segment_counts, deltaTs,
-                                                       T_ref_K)
-    return path, segment_temperatures
+    return build(builts)
 end
 
 """
@@ -269,16 +231,14 @@ Fiber(spec::SubpathBuilder; cross_section::FiberCrossSection, T_ref_K = DEFAULT_
     Fiber(Subpath(spec); cross_section = cross_section, T_ref_K = T_ref_K)
 
 function Fiber(spec::Subpath; cross_section::FiberCrossSection, T_ref_K = DEFAULT_T_REF_K)
-    built, segment_temperatures = _build_perturbed(spec, cross_section, T_ref_K)
-    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K,
-                 segment_temperatures = segment_temperatures)
+    built = _build_perturbed(spec, cross_section, T_ref_K)
+    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K)
 end
 
 function Fiber(spec::Vector{Subpath}; cross_section::FiberCrossSection,
                T_ref_K = DEFAULT_T_REF_K)
-    built, segment_temperatures = _build_perturbed(spec, cross_section, T_ref_K)
-    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K,
-                 segment_temperatures = segment_temperatures)
+    built = _build_perturbed(spec, cross_section, T_ref_K)
+    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K)
 end
 
 Fiber(spec::Vector{SubpathBuilder}; cross_section::FiberCrossSection,
@@ -291,46 +251,19 @@ fiber_path(f::Fiber) = f.path
 """
     temperature(f::Fiber, s) -> T
 
-Temperature (K) at fiber arc length `s`: `T_ref_K + ΔT` for the placed segment
-containing `s`, where `ΔT` is that segment's `:T_K` excursion. A fiber with no
-`:T_K` returns `T_ref_K` everywhere. The cross-section birefringences are
-evaluated at this temperature (asymmetric thermal stress ∝ `|T_soft − T|`, and
-the indices shift with `T`), so a `:T_K` segment's optical response — not only
-its length — reflects the excursion. `ΔT` may be `Particles`; the returned value
-carries it into the MCM-safe cross-section `T_K` slot.
+Temperature (K) at fiber arc length `s`, derived on demand: `T_ref_K + ΔT`,
+where `ΔT` is the `:T_K` excursion carried by the segment containing `s`
+(located via `local_segment(f.path, s)`). A fiber with no `:T_K` returns
+`T_ref_K` everywhere — `MCMcombine(0.0, seg, :T_K)` collapses to `0.0` when the
+segment carries none, so no sentinel is needed. The cross-section birefringences
+are evaluated at this temperature (asymmetric thermal stress ∝ `|T_soft − T|`,
+and the indices shift with `T`), so a `:T_K` segment's optical response — not
+only its length — reflects the excursion. `ΔT` may be `Particles`; the returned
+value carries it into the MCM-safe cross-section `T_K` slot. Sibling of
+`curvature(f, s)`: no thermal state is stored on `Fiber`.
 """
-function _segment_temperature_index(b::SubpathBuilt, s::Real)
-    for i in eachindex(b.placed_segments)
-        ps = b.placed_segments[i]
-        seg_end = Float64(_qc_nominalize(ps.s_offset_eff)) +
-                  Float64(_qc_nominalize(arc_length(ps.segment)))
-        s <= seg_end + 1e-9 && return i
-    end
-    return length(b.placed_segments) + 1
-end
-
-function _segment_temperature_index(p::PathBuilt, s::Real)
-    offs = s_offsets(p)
-    index_offset = 0
-    for i in eachindex(p.subpaths)
-        b = p.subpaths[i]
-        local_start = offs[i]
-        local_end = local_start + Float64(_qc_nominalize(arc_length(b)))
-        if s <= local_end + 1e-9
-            return index_offset + _segment_temperature_index(b, s - local_start)
-        end
-        index_offset += length(b.placed_segments) + 1
-    end
-    last_subpath = p.subpaths[end]
-    return index_offset - (length(last_subpath.placed_segments) + 1) +
-           _segment_temperature_index(last_subpath, arc_length(last_subpath))
-end
-
 function temperature(f::Fiber, s::Real)
-    segment_temperatures = f.segment_temperatures
-    segment_temperatures === nothing && return f.T_ref_K
-    i = _segment_temperature_index(f.path, s)
-    return segment_temperatures[i]
+    return f.T_ref_K + MCMcombine(0.0, local_segment(f.path, s), :T_K)
 end
 
 # ----------------------------

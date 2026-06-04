@@ -110,9 +110,9 @@ end
     @test arc_length(path.placed_segments[2].segment) ≈ 0.5
 end
 
-@testset "Fiber :T_K — segment temperatures are segment-indexed" begin
-    # T-GUARDRAIL: `segment_temperatures` is aligned with placed segment order,
-    # not keyed by arc length. `temperature(f, s)` does the post-build lookup.
+@testset "Fiber :T_K — temperature derived on demand from segment meta" begin
+    # T-GUARDRAIL: `temperature(f, s)` recovers each segment's `:T_K` excursion at
+    # query time via `local_segment(f.path, s)` — no thermal state on `Fiber`.
     ΔT = 12.0
     sub = _ft_subpath() do sb
         straight!(sb; length = 1.0, meta = [MCMadd(:T_K, ΔT)])
@@ -124,7 +124,6 @@ end
     s2 = Float64(_qc_nominalize(ps[2].s_offset_eff)) +
          0.5 * Float64(_qc_nominalize(arc_length(ps[2].segment)))
 
-    @test f.segment_temperatures == Any[_FT_T_REF + ΔT, _FT_T_REF, _FT_T_REF]
     @test temperature(f, s1) ≈ _FT_T_REF + ΔT
     @test temperature(f, s2) ≈ _FT_T_REF
 end

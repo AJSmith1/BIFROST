@@ -77,7 +77,7 @@ module FiberPath
     # Internal cross-module references. The geometry-layer perturbation mechanism
     # (used by the fiber's thermal :T_K interpretation) and a couple of helpers
     # are underscore-prefixed and not exported.
-    using ..PathGeometry: _scale_length_fields, _meta_without, _length_fields,
+    using ..PathGeometry: _scale_length_fields, _length_fields,
                           _qc_nominalize
     using ..FiberCS
     include("fiber/fiber-path.jl")
