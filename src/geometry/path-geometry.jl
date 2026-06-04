@@ -764,8 +764,8 @@ mutable struct SubpathBuilder
     jumpto_natural_extra::Float64
     # `:inherit` start-state intent (set by start!): when a flag is true the
     # corresponding start_* field is a placeholder, resolved at vector build time
-    # from the predecessor Subpath's endpoint (issue #51). The start_* tuples stay
-    # concrete Float64 so all downstream readers remain type-stable.
+    # from the predecessor Subpath's endpoint. The start_* tuples stay concrete
+    # Float64 so all downstream readers remain type-stable.
     inherit_start_point::Bool
     inherit_start_tangent::Bool
     inherit_start_curvature::Bool
@@ -1039,10 +1039,10 @@ struct Subpath
     # terminal connector is built directly at the natural exit (see build).
     jumpto_natural::Bool
     jumpto_natural_extra::Float64
-    # `:inherit` start-state intent (issue #51): when a flag is true the
-    # corresponding start_* field is a placeholder, resolved at vector build time
-    # from the predecessor Subpath's endpoint. The start_* tuples stay concrete
-    # so the standalone build and fiber reconstruction remain type-stable.
+    # `:inherit` start-state intent: when a flag is true the corresponding
+    # start_* field is a placeholder, resolved at vector build time from the
+    # predecessor Subpath's endpoint. The start_* tuples stay concrete so the
+    # standalone build and fiber reconstruction remain type-stable.
     inherit_start_point::Bool
     inherit_start_tangent::Bool
     inherit_start_curvature::Bool
@@ -1542,8 +1542,7 @@ For a naturally-sealed predecessor (`jumpto_natural`), the point and tangent are
 read from the built geometry (nominalized) and there is no declared end curvature
 (`nothing`). For a `jumpto!`-sealed predecessor they come from the declared
 `jumpto_point` / `jumpto_incoming_tangent` / `jumpto_incoming_curvature` (the
-latter two may be `nothing`). Shared by [`_check_subpath_conformity`](@ref) and
-the `:inherit` resolver so an inherited start matches what conformity checks.
+latter two may be `nothing`).
 """
 function _subpath_endpoint_state(prev_built::SubpathBuilt)
     prev = prev_built.subpath
@@ -1562,9 +1561,9 @@ end
 """
     _resolve_inherited_start(cur, prev_built) -> Subpath
 
-Resolve a Subpath's `:inherit` start fields from the predecessor's endpoint
-(issue #51). Returns `cur` unchanged when no inherit flag is set. Otherwise
-builds a new `Subpath` with each flagged field replaced by a concrete value:
+Resolve a Subpath's `:inherit` start fields from the predecessor's endpoint.
+Returns `cur` unchanged when no inherit flag is set. Otherwise builds a new
+`Subpath` with each flagged field replaced by a concrete value:
 
 - `point` ← the predecessor endpoint point;
 - `outgoing_tangent` ← the declared incoming tangent, or — when the predecessor
@@ -1660,9 +1659,8 @@ function build(builts::Vector{SubpathBuilt})
 end
 
 # Build a vector of Subpaths sequentially so that each Subpath's `:inherit` start
-# fields can be resolved from the predecessor's already-built endpoint (issue
-# #51). Non-inherit inputs are unaffected: `_resolve_inherited_start` is a no-op
-# when no flag is set, and the per-Subpath build order was already left-to-right.
+# fields can be resolved from the predecessor's already-built endpoint.
+# `_resolve_inherited_start` is a no-op when no inherit flag is set.
 function build(subpaths::Vector{Subpath}; perturb::Bool = false)
     isempty(subpaths) && throw(ArgumentError("PathBuilt: at least one Subpath required"))
     first_sub = subpaths[1]

@@ -156,7 +156,7 @@ function demo_path_geometry_jumps_min_radius(;
 
     # Subpath 2: inherits sb1's endpoint (1,0,1) heading -z via :inherit, runs
     # straight to (1,0,0), seals to (2,0,0) with incoming tangent (0,0,1). The
-    # start coordinates are no longer hand-loaded — they flow from sb1 (#51).
+    # start coordinates flow from sb1 rather than being hand-loaded.
     sb2 = PG.SubpathBuilder()
     PG.start!(sb2, :inherit)
     PG.straight!(sb2; length = 1.0, meta = [PG.Nickname("Sub2 straight")])

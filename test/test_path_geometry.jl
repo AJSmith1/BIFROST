@@ -367,7 +367,7 @@ end
 end
 
 # -----------------------------------------------------------------------
-# :inherit start-state (issue #51)
+# :inherit start-state
 # -----------------------------------------------------------------------
 
 # Build the standard transverse-chord predecessor used by several inherit tests:
@@ -498,8 +498,8 @@ end
 end
 
 @testset "inherit — non-inherit Vector{Subpath} build is unchanged" begin
-    # T-SIM-REGRESSION: the comprehension→sequential-loop swap must not alter
-    # hand-loaded multi-Subpath builds.
+    # T-SIM-REGRESSION: a hand-loaded multi-Subpath build (no :inherit) joins at
+    # the declared coordinates.
     sb2 = SubpathBuilder()
     start!(sb2; point = (1.0, 0.0, 1.0), outgoing_tangent = (0.0, 0.0, -1.0))
     straight!(sb2; length = 1.0)
