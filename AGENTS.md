@@ -138,6 +138,11 @@ Do not break these without explicit user discussion:
   - MCM prohibits conditionals anywhere that needs to propagate Particles. 
     Here this includes most methods in material-properties.jl, fiber-cross-section.jl,
     path-geometry.jl, fiber-path.jl, fiber-path-modify.jl, path-integral.jl.
+- **python wrapper**: A Python wrapper for `Bifrost.jl` is supplied in `src/wrapper.py`. The spirit 
+    for this wrapper is that Python is the workspace and Julia modules are guest libraries. No Julia
+    methods should be used in th python environment except those explicitly exposed via
+    `wrapper.wrap()`. It is never acceptable to expose general julia methods
+    in the python workspace.   
 
 ## Adding a New Birefringence Source
 
@@ -178,4 +183,10 @@ scattering.
 
 - When citing literature only use sources that you can verify in a library catalogue or
   database.
-- Markdown, comments and code must line wrap at 100 characters.
+- Markdown, comments and code must line wrap at 92 characters.
+- Modules, methods, and structs should have inline documentation following Julia norms.
+  Write for package users and current behavior; avoid development history, migration
+  notes, and references to retired APIs or design choices.
+- Use `skills/julia-docstrings` for Julia docstring creation, revision, and audits.
+- Obey the rule JuliaIndexFromLength. Use eachindex() not length() for iterating over
+  vectors/tensors in loops.
