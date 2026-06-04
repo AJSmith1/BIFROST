@@ -1613,6 +1613,16 @@ the Subpath start to global arc length `s`, walking the placed interior
 segments and the terminal connector. Segment-boundary positions are reduced to
 `Float64` for the loop bounds (so no `Particles` conditional is evaluated),
 while the integrand carries whatever element type the rate has.
+
+_accumulate_segment_phase is a generic helper — it doesn't accumulate any one kind of phase. 
+It's the shared "walk the path and integrate a rate from the start up to s" machinery. The caller 
+decides which phase by passing in a seg_phase integrand function. There are two kinds of "phase" 
+    built on top of it:
+
+    twist phase — ∫₀ˢ τ_m, the accumulated mechanical-twist angle 
+                            (how much the fiber has been physically twisted)
+    torsion phase — ∫₀ˢ τ_g, the accumulated geometric-torsion angle 
+                            (how much the path itself corkscrews through 3D space)
 """
 function _accumulate_segment_phase(b::SubpathBuilt, s, seg_phase)
     s_hi = Float64(_qc_nominalize(s))
