@@ -78,7 +78,7 @@ function bend_components(path::Union{SubpathBuilt, PathBuilt}, s::Real)
     return (kx = κ, ky = z, k2 = κ * κ)
 end
 
-struct Fiber{P,T,S,L}
+struct Fiber{P,T,S,ST}
     path::P
     cross_section::FiberCrossSection
     T_ref_K::T
@@ -88,26 +88,26 @@ struct Fiber{P,T,S,L}
     # when no segment carries `:T_K` (then `local_temperature ≡ T_ref_K`), else a
     # `(breaks, vals)` pair giving the temperature on each placed segment in
     # global arc-length order. See `local_temperature`.
-    local_T::L
+    segment_temperatures::ST
 end
 
 function Fiber(
     path::Union{SubpathBuilt, PathBuilt};
     cross_section::FiberCrossSection,
     T_ref_K = DEFAULT_T_REF_K,
-    local_T = nothing,
+    segment_temperatures = nothing,
 )
     s_start_val = 0.0
     s_end_val   = Float64(_qc_nominalize(arc_length(path)))
     s_start, s_end = promote(s_start_val, s_end_val)
     @assert s_end > s_start "Fiber requires s_end > s_start"
-    return Fiber{typeof(path),typeof(T_ref_K),typeof(s_start),typeof(local_T)}(
+    return Fiber{typeof(path),typeof(T_ref_K),typeof(s_start),typeof(segment_temperatures)}(
         path,
         cross_section,
         T_ref_K,
         s_start,
         s_end,
-        local_T,
+        segment_temperatures,
     )
 end
 
@@ -208,7 +208,7 @@ end
 # `(breaks, vals)` pair: `breaks[i]` is the global arc length at the end of
 # placed segment `i`, `vals[i]` its local temperature. `vals` keeps each entry
 # as-stored (no coercion) so a `Particles` ΔT propagates.
-function _build_local_T(pairs, deltaTs, T_ref_K)
+function _build_segment_temperatures(pairs, deltaTs, T_ref_K)
     any(!isnothing, deltaTs) || return nothing
     breaks = Float64[]
     vals = Any[]
@@ -231,8 +231,9 @@ end
 function _build_perturbed(sub::Subpath, cross_section::FiberCrossSection, T_ref_K)
     resolved, target, deltaT = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
     built = build(resolved; perturb = true, jumpto_target_length = target)
-    local_T = _build_local_T(((built, 0.0),), (deltaT,), T_ref_K)
-    return built, local_T
+    segment_temperatures = _build_segment_temperatures(((built, 0.0),), (deltaT,),
+                                                       T_ref_K)
+    return built, segment_temperatures
 end
 
 function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSection, T_ref_K)
@@ -252,8 +253,8 @@ function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSectio
     offs = s_offsets(path)
     pairs = Tuple{SubpathBuilt,Float64}[(path.subpaths[i], offs[i])
                                         for i in eachindex(path.subpaths)]
-    local_T = _build_local_T(pairs, deltaTs, T_ref_K)
-    return path, local_T
+    segment_temperatures = _build_segment_temperatures(pairs, deltaTs, T_ref_K)
+    return path, segment_temperatures
 end
 
 """
@@ -275,14 +276,16 @@ Fiber(spec::SubpathBuilder; cross_section::FiberCrossSection, T_ref_K = DEFAULT_
     Fiber(Subpath(spec); cross_section = cross_section, T_ref_K = T_ref_K)
 
 function Fiber(spec::Subpath; cross_section::FiberCrossSection, T_ref_K = DEFAULT_T_REF_K)
-    built, local_T = _build_perturbed(spec, cross_section, T_ref_K)
-    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K, local_T = local_T)
+    built, segment_temperatures = _build_perturbed(spec, cross_section, T_ref_K)
+    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K,
+                 segment_temperatures = segment_temperatures)
 end
 
 function Fiber(spec::Vector{Subpath}; cross_section::FiberCrossSection,
                T_ref_K = DEFAULT_T_REF_K)
-    built, local_T = _build_perturbed(spec, cross_section, T_ref_K)
-    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K, local_T = local_T)
+    built, segment_temperatures = _build_perturbed(spec, cross_section, T_ref_K)
+    return Fiber(built; cross_section = cross_section, T_ref_K = T_ref_K,
+                 segment_temperatures = segment_temperatures)
 end
 
 Fiber(spec::Vector{SubpathBuilder}; cross_section::FiberCrossSection,
@@ -304,9 +307,9 @@ only its length — reflects the excursion. `ΔT` may be `Particles`; the return
 value carries it into the MCM-safe cross-section `T_K` slot.
 """
 function local_temperature(f::Fiber, s::Real)
-    lt = f.local_T
-    lt === nothing && return f.T_ref_K
-    breaks, vals = lt
+    segment_temperatures = f.segment_temperatures
+    segment_temperatures === nothing && return f.T_ref_K
+    breaks, vals = segment_temperatures
     @inbounds for i in eachindex(breaks)
         s <= breaks[i] + 1e-9 && return vals[i]
     end
