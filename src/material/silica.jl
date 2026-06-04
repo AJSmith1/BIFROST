@@ -37,7 +37,7 @@ const SILICA_TERM_2 = SellmeierTerm(
 
 const SILICA_TERM_3 = SellmeierTerm(
     TemperaturePolynomial((7.93552e-1, -1.27815e-3, 1.84595e-5, -9.20275e-8, 1.48829e-10)),
-    TemperaturePolynomial((9.34454, -70.9788e-3, 1.01968e-4, -5.07660e-7, 8.21348e-10))
+    TemperaturePolynomial((9.34454, -7.09788e-3, 1.01968e-4, -5.07660e-7, 8.21348e-10))
 )
 
 const SILICA_CTE = 5.4e-7
