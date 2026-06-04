@@ -50,6 +50,13 @@ struct StepIndexCrossSection{T<:Real} <: FiberCrossSection
     # birefringence); `ellipticity_axis_angle` (rad) is the major-axis
     # orientation in the local transverse frame. The cross-section returns only
     # the birefringence *magnitude*; the fiber generator orients it.
+
+    # The ellipticity_axis_angle is a frame-relative angle. When 
+    # ellipticity_axis_angle = 0 the core's major axis is aligned with the
+    # curvature normal (the same direction the bend birefringence picks out).
+    # Increasing the angle rotates it toward the binormal, about the propagation
+    # tangent. 
+
     ellipticity_axis_ratio::T
     ellipticity_axis_angle::T
 
