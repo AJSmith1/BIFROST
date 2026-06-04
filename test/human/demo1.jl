@@ -115,7 +115,7 @@ end
 
 # Render one experiment row: each variant's path laid out side-by-side along x,
 # with the target segment drawn in red and the others in green. The terminal
-# connector (added by the new architecture) is rendered in faint gray.
+# connector is rendered in faint gray.
 function _modify_row_html(output::AbstractString, title::AbstractString;
                           L::Float64, R::Float64,
                           variants::Vector,
@@ -417,7 +417,7 @@ function demo_modify_helix_turns_mul(;
 end
 
 # =====================================================================
-# Helix with material spinning (ported from the old demo.jl)
+# Helix with material spinning.
 # =====================================================================
 
 function demo_helix_mcm_spinning(;
