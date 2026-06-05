@@ -40,6 +40,12 @@ refractive_index(material::AbstractMaterial, λ, T_K) =
 #
 #################################################
 
+# TODO Banner... validate ranges
+const MIN_VALID_TEMPERATURE_K = 243.0
+const MAX_VALID_TEMPERATURE_K = 373.0
+const MIN_VALID_WAVELENGTH_M = 1300e-9
+const MAX_VALID_WAVELENGTH_M = 1700e-9
+
 function validate_molar_fraction(x::Real)
     xf = Float64(x)
     if !(isfinite(xf) && 0.0 <= xf <= 1.0)
@@ -53,17 +59,17 @@ function validate_model_temperature(T_K, min_T, max_T)
         throw(ArgumentError("temperature must be a finite positive value in kelvin"))
     end
     if !(min_T <= T_K <= max_T)
-        @warn "temperature is outside the current model measurement range [$(min_T), $(max_T)] K: got $(T_K)"
+        @warn "temperature is outside the current model validity range [$(min_T), $(max_T)] K: got $(T_K)"
     end
     return T_K
 end
 
-function validate_model_wavelength(λ, min_λ, max_λ)
+function validate_model_wavelength(λ)
     λ = float(λ)
     if !(isfinite(λ) && λ > 0.0)
         throw(ArgumentError("wavelength must be a finite positive value in meters"))
     end
-    if !(min_λ <= λ <= max_λ)
+    if !(MIN_VALID_WAVELENGTH_M <= λ <= MAX_VALID_WAVELENGTH_M)
         throw(ArgumentError(
             "wavelength is outside the current model validity range " *
             "[$(MIN_VALID_WAVELENGTH_M), $(MAX_VALID_WAVELENGTH_M)] m: got $(λ)"
@@ -212,8 +218,8 @@ function sellmeier_coefficients(material::AbstractMaterial, param)
     return map(term -> evaluate(term, param), material.sellmeier_terms)
 end
 
-function sellmeier_index_from_coefficients(coeffs, λ, min_λ=0, max_λ=1e10)
-    λ_m = validate_model_wavelength(λ, min_λ, max_λ)
+function sellmeier_index_from_coefficients(coeffs, λ)
+    λ_m = validate_model_wavelength(λ)
     λ_um = λ_m * 1e6
     total = one(λ_um)
     for (B, C) in coeffs
@@ -222,8 +228,8 @@ function sellmeier_index_from_coefficients(coeffs, λ, min_λ=0, max_λ=1e10)
     return sqrt(total)
 end
 
-function sellmeier_index_from_coefficients_dω(coeffs, λ, min_λ=0, max_λ=1e10)
-    λ_m = validate_model_wavelength(λ, min_λ, max_λ)
+function sellmeier_index_from_coefficients_dω(coeffs, λ)
+    λ_m = validate_model_wavelength(λ)
     λ_um = λ_m * 1e6
     total = one(λ_um)
     dtotal_dλm = zero(λ_um)
