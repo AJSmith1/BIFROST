@@ -187,7 +187,7 @@ end
 # material `cte`/`youngs_modulus` lookups are gated behind the presence of the
 # corresponding meta so a plain fiber on a cladding with neither defined still
 # builds. Returns the resolved Subpath and that target length (or `nothing`).
-function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection, T_ref_K)
+function _resolve_thermal_and_tension(sub::Subpath, cross_section::FiberCrossSection, T_ref_K)
     _validate_seal_meta(sub)   # reject unsupported MCM on the terminal connector
     seal_ΔT     = _seal_delta_T(sub)
     seal_F      = _seal_tension(sub)
@@ -243,7 +243,7 @@ function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection
 end
 
 function _build_perturbed(sub::Subpath, cross_section::FiberCrossSection, T_ref_K)
-    resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
+    resolved, target = _resolve_thermal_and_tension(sub, cross_section, T_ref_K)
     return build(resolved; perturb = true, jumpto_target_length = target)
 end
 
@@ -255,7 +255,7 @@ function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSectio
     for i in eachindex(subs)
         sub = i == 1 ? subs[i] :
               PathGeometry._resolve_inherited_spin(subs[i], builts[i-1])
-        resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
+        resolved, target = _resolve_thermal_and_tension(sub, cross_section, T_ref_K)
         builts[i] = build(resolved; perturb = true, jumpto_target_length = target)
     end
     return build(builts)
