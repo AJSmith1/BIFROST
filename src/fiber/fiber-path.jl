@@ -120,7 +120,7 @@ end
 # so `temperature(f, s)` can recover ΔT on demand at query time — no thermal state
 # is stored on `Fiber`. This is the *only* place `:T_K` is named.
 
-# ΔT for a segment from its additive `:T_K` meta, or `nothing` when it carries
+# (below) ΔT for a segment from its additive `:T_K` meta, or `nothing` when it carries
 # none (the additive combine of 0.0 returns the unchanged baseline).
 _segment_delta_T(seg) = (Δ = MCMcombine(0.0, seg, :T_K); Δ === 0.0 ? nothing : Δ)
 
