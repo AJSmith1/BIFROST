@@ -25,9 +25,18 @@ cte_value = cte(glass, T_K)
 #
 #################################################
 
-const GERMANIA_TERM_1 = SellmeierTerm(SellmeierConstantLaw(0.80686642), SellmeierConstantLaw(0.068972606))
-const GERMANIA_TERM_2 = SellmeierTerm(SellmeierConstantLaw(0.71815848), SellmeierConstantLaw(0.15396605))
-const GERMANIA_TERM_3 = SellmeierTerm(SellmeierConstantLaw(0.85416831), SellmeierConstantLaw(11.841931))
+const GERMANIA_TERM_1 = SellmeierTerm(
+    _ -> 0.80686642, 
+    _ -> 0.068972606
+)
+const GERMANIA_TERM_2 = SellmeierTerm(
+    _ -> 0.71815848,
+    _ -> 0.15396605
+)
+const GERMANIA_TERM_3 = SellmeierTerm(
+    _ -> 0.85416831,
+    _ -> 11.841931
+)
 
 const GERMANIA_REFERENCE_TEMPERATURE_K = 297.15
 
@@ -70,25 +79,22 @@ function thermo_optic_index_shift(material::GeO2, T_K)
            1.6654e-7 / 2 * (T^2 - Tref^2)
 end
 
-function reference_refractive_index(material::GeO2, λ, T_K)
+function refractive_index(material::GeO2, λ, T_K)
     T = validate_model_temperature(T_K)
     base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
     n_ref = sellmeier_index_from_coefficients(base_coeffs, λ)
     return n_ref + thermo_optic_index_shift(material, T)
 end
 
-function reference_refractive_index(::WithDerivative, material::GeO2, λ, T_K)
+refractive_index(style::ValueOnly, material::GeO2, λ, T_K) =
+    refractive_index(material, λ, T_K)
+
+function refractive_index(::WithDerivative, material::GeO2, λ, T_K)
     T = validate_model_temperature(T_K)
     base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
     base = sellmeier_index_from_coefficients_dω(base_coeffs, λ)
     return SpectralResponse(base.value + thermo_optic_index_shift(material, T), base.dω)
 end
-
-refractive_index(style::ValueOnly, material::GeO2, λ, T_K) =
-    reference_refractive_index(material, λ, T_K)
-
-refractive_index(style::WithDerivative, material::GeO2, λ, T_K) =
-    reference_refractive_index(style, material, λ, T_K)
 
 #################################################
 #

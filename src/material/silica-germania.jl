@@ -38,6 +38,7 @@ cte_value = cte(glass, T_K)
 
 struct SilicaGermaniaGlass <: AbstractMaterial
     x_ge::Float64
+    
     function SilicaGermaniaGlass(x_ge::Real)
         xf = validate_molar_fraction(x_ge)
         return new(xf)

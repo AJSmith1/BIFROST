@@ -97,18 +97,6 @@ function finite_difference_dω(f, λ_meters; dλ = 1e-12)
 end
 
 @testset "Helper laws and constructors" begin
-    poly = TemperaturePolynomial((1.0, 2.0, 3.0, 4.0, 5.0))
-    @test poly(2.0) == 129.0
-
-    law = SellmeierConstantLaw(7.5)
-    @test law(1.0) == 7.5
-    @test law(999.0) == 7.5
-
-    quad = SellmeierQuadraticMolarLaw(2.0, -0.5)
-    @test quad(0.0) == 0.0
-    @test quad(0.25) ≈ 0.0
-    @test quad(1.0) == 1.5
-
     @test SilicaGermaniaGlass(0.0).x_ge == 0.0
     @test SilicaGermaniaGlass(1.0).x_ge == 1.0
     @test SilicaFluorinatedGlass(0.0).x_f == 0.0

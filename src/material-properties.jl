@@ -2,7 +2,7 @@
 Material properties for optical glasses.
 
 This file defines base types and common algebraic methods that will
-be available to all specific materials defined in the materials folder.
+be available to all specific materials defined in the material folder.
 
 Units (SI unless noted):
 - λ                     wavelength in m
@@ -20,6 +20,7 @@ const SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
 abstract type AbstractMaterial end
 abstract type SpectralStyle end
 
+# dω is the ω-derivative of the function that produces value at the parameters that produce value
 struct SpectralResponse{T}
     value::T
     dω::T
@@ -104,65 +105,125 @@ end
 #
 #################################################
 
-raw"""
-The Sellmeier equation states ``n^2 = 1 + \sum_{i=1}^n B_i\lambda^2/(\lambda^2 - C_i^2)`` where
-``B_i`` and ``C_i`` are strength and wavelength properties of each resonance used in the
-calculation. Below, "term" refers to one term of the above sum. Every term must be specified
-with a B and a C coefficient.
+"""
+Every material must implement
 
-The behaviors of the refractive index with temperature and doping are modeled in many different
-ways for different materials. We have included a few common ones below.
+    refractive_index(::ValueOnly, material, λ, T_K) -> Float64
+    refractive_index(::WithDerivative, material, λ, T_K) -> SpectralResponse
+    
+That's it. Implement those however makes sense for your material.
 
-    - If temperature variation is modeled with changing Sellmeier coefficients, one can use
-      TemperaturePolynomial:
-      ```
-      x = SellemeierTerm(
-          TemperaturePolynomial((a, b, c, ...)),
-          TemperaturePolynomial((d, e, f, ...))
-      )
-      ```
-      This produces a Sellmeier term where B varies as a + bT + cT^2 + ... and C varies as 
-      d + eT + fT^2... . Calling evaluate(x, T_0) returns a 2-tuple of the B and C coefficients
-      at temperature T0.
+Most materials are modeled with the Sellmeier equation, which states
+``n^2 = 1 + \\sum_{i=1}^n B_i\\lambda^2/(\\lambda^2 - C_i^2)`` where ``B_i`` and ``C_i`` are
+strength and wavelength properties of each resonance used in the
+calculation. The functions
+
+    sellmeier_index_from_coefficients(coeffs, λ) -> Float64
+    sellmeier_index_from_coefficients_dω(coeffs, λ) -> SpectralResponse
+
+provide the refractive index given the Sellmeier coefficients B and C and the wavelength λ, with
+coeffs specified as an n-tuple of 2-tuples (B, C). Thus, if appropriate, your material could
+simply implement
+
+    refractive_index(::ValueOnly, material::YourMaterial, λ, T_K) = 
+        sellmeier_index_from_coefficients(YOUR_COEFFICIENTS, λ)
+    refractive_index(::WithDerivative, material::YourMaterial, λ, T_K) = 
+        sellmeier_index_from_coefficients_dω(YOUR_COEFFICIENTS, λ)
+
+To store Sellmeier coefficients and any dependence on any parameters, we provide the 
+SellmeierTerm struct. It has two properties, B_law and C_law, which must be either numbers
+or callables that depend on some parameter of interest. For example, you may define constants:
+
+    germania_term_1 = SellmeierTerm(0.80686642, 0.068972606)
+
+or functions of something, such as temperature:
+
+    const SILICA_TERM_1 = SellmeierTerm(
+        T -> 1.10127 - 4.94251e-5*T + 5.27414e-7*T^2 - 1.59700e-9*T^3 + 1.75949e-12*T^4,
+        T -> -8.906e-2 + 9.0873e-6*T - 6.53638e-8*T^2 + 7.77072e-11*T^3 + 6.84605e-14*T^4
+    )
+
+One can then define a material by these terms, e.g.
+
+    struct SiO2 <: AbstractMaterial
+        sellmeier_terms::NTuple{3, SellmeierTerm}
+    end
+    const PURE_SILICA = SiO2((SILICA_TERM_1, SILICA_TERM_2, SILICA_TERM_3))
+
+Then one can use the generic sellmeier_coefficients(material::AbstractMaterial, param) provided 
+here to obtain the tuple of 2-tuples needed for sellmeier_index_from_coefficients(). NOTE: the
+generic function requires `material` to have a field `sellmeier_terms``, and it also has no
+validation for `param`` because it doesn't know what `param` is. It's strongly recommended to
+override sellmeier_coefficients() to do your own parameter validation before calling the
+map(term -> evaluate()) line on the terms.)
+
+We also provide the SellmeierCorrectionTerm struct which is purely an API convenience with
+the same behavior as SellmeierTerm but with different names. This reduces confusion for
+materials whose refractive indices are defined by corrections to the indices of another material.
+
+Note also that any implemented material must ensure compatibility with `Particles` to allow
+Monte Carlo calculation. This happens naturally through the Sellmeier structure if all B and C
+coefficients are numbers or callable polynomials. Anything more complicated than polynomials
+needs to be carefully vetted with Particles.
 """
 
-struct TemperaturePolynomial
-    coeffs::Tuple{Vararg{Float64}}
-    TemperaturePolynomial(coeffs::Tuple{Vararg{<:Real}}) = new(map(Float64, coeffs))
-end
-
-function (poly::TemperaturePolynomial)(T_K)
-    return evalpoly(T_K, poly.coeffs)
+function _validate_law(law, name::String)
+    # Accept numbers (includes Particles, Int, Float64, etc.)
+    if isa(law, Number)
+        return nothing
+    end
+    
+    # Accept anything callable
+    if applicable(law, 273.15)
+        return nothing
+    end
+    
+    throw(ArgumentError(
+        "$name must be a number or callable, got $(typeof(law))"
+    ))
 end
 
 struct SellmeierTerm{TB, TC}
     B_law::TB
     C_law::TC
+
+    function SellmeierTerm(B_law, C_law)
+        _validate_law(B_law, "B_law")
+        _validate_law(C_law, "C_law")
+        return new{typeof(B_law), typeof(C_law)}(B_law, C_law)
+    end
 end
 
-evaluate(term::SellmeierTerm, temperature_like) = (term.B_law(temperature_like), term.C_law(temperature_like))
-
-struct SellmeierConstantLaw
-    value::Float64
-    SellmeierConstantLaw(value::Real) = new(Float64(value))
+function _evaluate_law(law, param)
+    return law isa Number ? law : law(param)
 end
 
-(law::SellmeierConstantLaw)(x) = law.value * one(x)
+evaluate(term::SellmeierTerm, param) = (_evaluate_law(term.B_law, param), _evaluate_law(term.C_law, param))
 
-struct SellmeierQuadraticMolarLaw
-    quadratic::Float64
-    linear::Float64
-    SellmeierQuadraticMolarLaw(quadratic::Real, linear::Real) = new(Float64(quadratic), Float64(linear))
+struct SellmeierCorrectionTerm{TB, TC}
+    ΔB_law::TB
+    ΔC_law::TC
+
+    function SellmeierCorrectionTerm(ΔB_law, ΔC_law)
+        _validate_law(ΔB_law, "ΔB_law")
+        _validate_law(ΔC_law, "ΔC_law")
+        return new{typeof(ΔB_law), typeof(ΔC_law)}(ΔB_law, ΔC_law)
+    end
 end
 
-(law::SellmeierQuadraticMolarLaw)(x) = law.quadratic * x^2 + law.linear * x
+evaluate(term::SellmeierCorrectionTerm, param) =
+        (_evaluate_law(term.ΔB_law, param), _evaluate_law(term.ΔC_law, param))
 
-struct SellmeierCorrectionTerm
-    ΔB_law::SellmeierQuadraticMolarLaw
-    ΔC_law::SellmeierQuadraticMolarLaw
+function sellmeier_coefficients(material::AbstractMaterial, param)
+    # NO validation of param! Validate param before calling this, or override this.
+    # The material must have a sellmeier_terms field to use this function.
+    if !hasfield(typeof(material), :sellmeier_terms)
+        throw(ArgumentError(
+            "$(typeof(material)) does not have a sellmeier_terms field."
+        ))
+    end
+    return map(term -> evaluate(term, param), material.sellmeier_terms)
 end
-
-evaluate(term::SellmeierCorrectionTerm, molar_fraction) = (term.ΔB_law(molar_fraction), term.ΔC_law(molar_fraction))
 
 function sellmeier_index_from_coefficients(coeffs, λ)
     λ_m = validate_model_wavelength(λ)
