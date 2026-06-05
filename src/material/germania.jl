@@ -25,11 +25,12 @@ cte_value = cte(glass, T_K)
 #
 #################################################
 
-# Terms from Fleming, Applied Optics (1984)
-
-const GERMANIA_TERM_1 = SellmeierTerm(0.80686642, 0.068972606)
-const GERMANIA_TERM_2 = SellmeierTerm(0.71815848, 0.15396605)
-const GERMANIA_TERM_3 = SellmeierTerm(0.85416831, 11.841931)
+# Sellmeier coefficients from Fleming, Applied Optics (1984).
+const _GERMANIA_SELLMEIER_COEFFICIENTS = (
+    (0.80686642, 0.068972606),
+    (0.71815848, 0.15396605),
+    (0.85416831, 11.841931)
+)
 
 const GERMANIA_REFERENCE_TEMPERATURE_K = 297.15
 
@@ -51,12 +52,9 @@ const GERMANIA_N2 = 4.6e-20
 #
 #################################################
 
-struct GeO2 <: AbstractMaterial
-    sellmeier_terms::NTuple{3, SellmeierTerm}
-end
+struct GeO2 <: AbstractMaterial end
 
-const PURE_GERMANIA = GeO2((GERMANIA_TERM_1, GERMANIA_TERM_2, GERMANIA_TERM_3))
-GeO2() = PURE_GERMANIA
+const PURE_GERMANIA = GeO2()
 
 #################################################
 #
@@ -73,19 +71,21 @@ function thermo_optic_index_shift(material::GeO2, T_K)
            1.6654e-7 / 2 * (T^2 - Tref^2)
 end
 
-function refractive_index(material::GeO2, λ, T_K)
+function _sellmeier_coefficients(::GeO2, T_K)
     T = validate_model_temperature(T_K)
-    base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
+    return _evaluate_sellmeier_constants(_GERMANIA_SELLMEIER_COEFFICIENTS, T)
+end
+
+function refractive_index(::ValueOnly, material::GeO2, λ, T_K)
+    T = validate_model_temperature(T_K)
+    base_coeffs = _sellmeier_coefficients(material, T)
     n_ref = sellmeier_index_from_coefficients(base_coeffs, λ)
     return n_ref + thermo_optic_index_shift(material, T)
 end
 
-refractive_index(style::ValueOnly, material::GeO2, λ, T_K) =
-    refractive_index(material, λ, T_K)
-
 function refractive_index(::WithDerivative, material::GeO2, λ, T_K)
     T = validate_model_temperature(T_K)
-    base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
+    base_coeffs = _sellmeier_coefficients(material, T)
     base = sellmeier_index_from_coefficients_dω(base_coeffs, λ)
     return SpectralResponse(base.value + thermo_optic_index_shift(material, T), base.dω)
 end

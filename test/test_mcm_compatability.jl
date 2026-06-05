@@ -1,4 +1,5 @@
 using Test
+using LinearAlgebra
 using MonteCarloMeasurements
 using Bifrost
 using Bifrost.PathGeometry: _qc_nominalize
