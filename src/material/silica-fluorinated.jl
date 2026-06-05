@@ -78,8 +78,6 @@ photoelastic_constants(::SilicaFluorinatedGlass, _) = unsupported_fluorine_prope
 
 youngs_modulus(::SilicaFluorinatedGlass, _) = unsupported_fluorine_property("youngs_modulus")
 
-nonlinear_refractive_index(::SilicaFluorinatedGlass, _, _) = unsupported_fluorine_property("nonlinear_refractive_index")
-
 function unsupported_fluorine_property(name::AbstractString)
     throw(ArgumentError("$(name) is not defined for fluorine-doped silica in the current model"))
 end

@@ -101,9 +101,3 @@ softening_temperature(::GeO2, _) = GERMANIA_SOFTENING_TEMPERATURE_K
 poisson_ratio(::GeO2, _) = GERMANIA_POISSON_RATIO
 photoelastic_constants(::GeO2, _) = GERMANIA_PHOTOELASTIC_CONSTANTS
 youngs_modulus(::GeO2, _) = GERMANIA_YOUNGS_MODULUS
-
-function nonlinear_refractive_index(::GeO2, λ, T_K)
-    validate_model_wavelength(λ)
-    validate_model_temperature(T_K)
-    return GERMANIA_N2
-end

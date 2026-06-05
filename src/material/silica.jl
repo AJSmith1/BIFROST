@@ -96,9 +96,3 @@ softening_temperature(::SiO2, _) = SILICA_SOFTENING_TEMPERATURE_K
 poisson_ratio(::SiO2, _) = SILICA_POISSON_RATIO
 photoelastic_constants(::SiO2, _) = SILICA_PHOTOELASTIC_CONSTANTS
 youngs_modulus(::SiO2, _) = SILICA_YOUNGS_MODULUS
-
-function nonlinear_refractive_index(::SiO2, λ, T_K)
-    validate_model_wavelength(λ)
-    validate_model_temperature(T_K)
-    return SILICA_N2
-end
