@@ -26,7 +26,12 @@ cte_value = cte(glass, T_K)
 #################################################
 
 # Sellmeier polynomial coefficients from Leviton and Frey,
-# Optomechanical Technologies for Astronomy 2006.
+# Optomechanical Technologies for Astronomy (2006).
+
+const SILICA_MIN_VALID_TEMPERATURE_K = 30.0
+const SILICA_MAX_VALID_TEMPERATURE_K = 310.0
+const SILICA_MIN_VALID_WAVELENGTH_M = 400e-9
+const SILICA_MAX_VALID_WAVELENGTH_M = 2600e-9
 
 const SILICA_TERM_1 = SellmeierTerm(
     T -> 1.10127 - 4.94251e-5*T + 5.27414e-7*T^2 - 1.59700e-9*T^3 + 1.75949e-12*T^4,
@@ -76,14 +81,14 @@ SiO2() = PURE_SILICA
 
 # Override sellmeier_coefficients_generic to do validation of T_K
 function sellmeier_coefficients(material::SiO2, T_K)
-    T = validate_model_temperature(T_K)
+    T = validate_model_temperature(T_K, SILICA_MIN_VALID_TEMPERATURE_K, SILICA_MAX_VALID_TEMPERATURE_K)
     return map(term -> evaluate(term, T), material.sellmeier_terms)
 end
 
 refractive_index(::ValueOnly, material::SiO2, λ, T_K) = 
-        sellmeier_index_from_coefficients(sellmeier_coefficients(material, T_K), λ)
+        sellmeier_index_from_coefficients(sellmeier_coefficients(material, T_K), λ, SILICA_MIN_VALID_WAVELENGTH_M, SILICA_MAX_VALID_WAVELENGTH_M)
 refractive_index(::WithDerivative, material::SiO2, λ, T_K) = 
-        sellmeier_index_from_coefficients_dω(sellmeier_coefficients(material, T_K), λ)
+        sellmeier_index_from_coefficients_dω(sellmeier_coefficients(material, T_K), λ, SILICA_MIN_VALID_WAVELENGTH_M, SILICA_MAX_VALID_WAVELENGTH_M)
 
 #################################################
 #
@@ -98,7 +103,7 @@ photoelastic_constants(::SiO2, _) = SILICA_PHOTOELASTIC_CONSTANTS
 youngs_modulus(::SiO2, _) = SILICA_YOUNGS_MODULUS
 
 function nonlinear_refractive_index(::SiO2, λ, T_K)
-    validate_model_wavelength(λ)
-    validate_model_temperature(T_K)
+    validate_model_wavelength(λ, SILICA_MIN_VALID_WAVELENGTH_M, SILICA_MAX_VALID_WAVELENGTH_M)
+    validate_model_temperature(T_K, SILICA_MIN_VALID_TEMPERATURE_K, SILICA_MAX_VALID_TEMPERATURE_K)
     return SILICA_N2
 end

@@ -27,6 +27,12 @@ cte_value = cte(glass, T_K)
 
 # Terms from Fleming, Applied Optics (1984)
 
+const GE_MIN_VALID_TEMPERATURE_K = 200.0
+const GE_MAX_VALID_TEMPERATURE_K = 300.0
+# Thermo-optic coefficient was measured only at 1550!
+const GE_MIN_VALID_WAVELENGTH_M = 1300e-9
+const GE_MAX_VALID_WAVELENGTH_M = 1700e-9
+
 const GERMANIA_TERM_1 = SellmeierTerm(0.80686642, 0.068972606)
 const GERMANIA_TERM_2 = SellmeierTerm(0.71815848, 0.15396605)
 const GERMANIA_TERM_3 = SellmeierTerm(0.85416831, 11.841931)
@@ -66,7 +72,7 @@ GeO2() = PURE_GERMANIA
 
 # From G. M. Rego, Sensors (2024)
 function thermo_optic_index_shift(material::GeO2, T_K)
-    T = validate_model_temperature(T_K)
+    T = validate_model_temperature(T_K, GE_MIN_VALID_TEMPERATURE_K, GE_MAX_VALID_TEMPERATURE_K)
     Tref = GERMANIA_REFERENCE_TEMPERATURE_K
     return 6.2153e-13 / 4 * (T^4 - Tref^4) -
            5.3387e-10 / 3 * (T^3 - Tref^3) +
@@ -74,9 +80,9 @@ function thermo_optic_index_shift(material::GeO2, T_K)
 end
 
 function refractive_index(material::GeO2, λ, T_K)
-    T = validate_model_temperature(T_K)
+    T = validate_model_temperature(T_K, GE_MIN_VALID_TEMPERATURE_K, GE_MAX_VALID_TEMPERATURE_K)
     base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
-    n_ref = sellmeier_index_from_coefficients(base_coeffs, λ)
+    n_ref = sellmeier_index_from_coefficients(base_coeffs, λ, GE_MIN_VALID_WAVELENGTH_M, GE_MAX_VALID_WAVELENGTH_M)
     return n_ref + thermo_optic_index_shift(material, T)
 end
 
@@ -84,9 +90,9 @@ refractive_index(style::ValueOnly, material::GeO2, λ, T_K) =
     refractive_index(material, λ, T_K)
 
 function refractive_index(::WithDerivative, material::GeO2, λ, T_K)
-    T = validate_model_temperature(T_K)
+    T = validate_model_temperature(T_K, GE_MIN_VALID_TEMPERATURE_K, GE_MAX_VALID_TEMPERATURE_K)
     base_coeffs = map(term -> evaluate(term, T), material.sellmeier_terms)
-    base = sellmeier_index_from_coefficients_dω(base_coeffs, λ)
+    base = sellmeier_index_from_coefficients_dω(base_coeffs, λ, GE_MIN_VALID_WAVELENGTH_M, GE_MAX_VALID_WAVELENGTH_M)
     return SpectralResponse(base.value + thermo_optic_index_shift(material, T), base.dω)
 end
 
@@ -103,7 +109,7 @@ photoelastic_constants(::GeO2, _) = GERMANIA_PHOTOELASTIC_CONSTANTS
 youngs_modulus(::GeO2, _) = GERMANIA_YOUNGS_MODULUS
 
 function nonlinear_refractive_index(::GeO2, λ, T_K)
-    validate_model_wavelength(λ)
-    validate_model_temperature(T_K)
+    validate_model_wavelength(λ, GE_MIN_VALID_WAVELENGTH_M, GE_MAX_VALID_WAVELENGTH_M)
+    validate_model_temperature(T_K, GE_MIN_VALID_TEMPERATURE_K, GE_MAX_VALID_TEMPERATURE_K)
     return GERMANIA_N2
 end
