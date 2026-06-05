@@ -183,6 +183,7 @@ function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection
         sub.jumpto_twist,
         sub.jumpto_natural, sub.jumpto_natural_extra,
         sub.spin_rate, sub._spin_phi_at_s0,
+        sub.inherit_start_point, sub.inherit_start_tangent, sub.inherit_start_curvature,
     )
     return (resolved, jumpto_target_length)
 end
@@ -198,8 +199,13 @@ function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSectio
     # thermal+perturbed built Subpath before this one is built.
     builts = Vector{SubpathBuilt}(undef, length(subs))
     for i in eachindex(subs)
-        sub = i == 1 ? subs[i] :
-              PathGeometry._resolve_inherited_spin(subs[i], builts[i-1])
+        sub = subs[i]
+        if i > 1
+            # Resolve start-state then spin inheritance against the prior
+            # thermal+perturbed built Subpath, mirroring build(::Vector{Subpath}).
+            sub = PathGeometry._resolve_inherited_start(sub, builts[i-1])
+            sub = PathGeometry._resolve_inherited_spin(sub, builts[i-1])
+        end
         resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
         builts[i] = build(resolved; perturb = true, jumpto_target_length = target)
     end

@@ -190,4 +190,4 @@ scattering.
 - Use `skills/julia-docstrings` for Julia docstring creation, revision, and audits.
 - Obey the rule JuliaIndexFromLength. Use eachindex() not length() for iterating over
   vectors/tensors in loops.
-- Citations of literature should include doi in only this format https://doi.org/xxxxx
+- Citations of literature should include doi in only this format doi:xxxxx

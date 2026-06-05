@@ -244,14 +244,14 @@ end
     @test twisting_birefringence(fiber, λ, T; twist_rate_rad_per_m = tr) ≈
           reference_twisting_birefringence(fiber, λ, T; twist_rate_rad_per_m = tr) rtol = 1e-12
 
-    # T-PHYSICS: the cross-section now returns an unsigned birefringence
-    # *magnitude*; an axis ratio and its inverse describe the same ellipse
-    # rotated 90°, so they give *equal* magnitude (the generator supplies the
-    # orthogonal orientation), not a sign flip.
-    @test core_noncircularity_birefringence(fiber, λ, T; axis_ratio = inv(ε)) ≈
-          core_noncircularity_birefringence(fiber, λ, T; axis_ratio = ε) rtol = 1e-12
-    @test asymmetric_thermal_stress_birefringence(fiber, λ, T; axis_ratio = inv(ε)) ≈
-          asymmetric_thermal_stress_birefringence(fiber, λ, T; axis_ratio = ε) rtol = 1e-12
+    # T-GUARDRAIL: axis_ratio is defined as major/minor and must be ≥ 1
+    # (twist-phase-c, commit 4c6ca28). An inverse ratio (< 1) is ambiguous as to
+    # which axis is major, so it is rejected — the earlier ε↔1/ε magnitude
+    # symmetry no longer applies because inv(ε) is no longer a legal input.
+    @test_throws ArgumentError core_noncircularity_birefringence(fiber, λ, T;
+                                                                 axis_ratio = inv(ε))
+    @test_throws ArgumentError asymmetric_thermal_stress_birefringence(fiber, λ, T;
+                                                                       axis_ratio = inv(ε))
 end
 
 @testset "StepIndexCrossSection ellipticity fields" begin

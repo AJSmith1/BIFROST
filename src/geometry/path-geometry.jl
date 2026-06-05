@@ -782,13 +782,21 @@ mutable struct SubpathBuilder
     # Accumulated spin phase (rad) at the Subpath's s=0. Internal; not a `start!`
     # argument. `nothing` until resolved by build, then a `Float64`.
     _spin_phi_at_s0::Union{Float64, Nothing}
+    # `:inherit` start-state flags. When set (by passing `:inherit` for the
+    # corresponding `start!` keyword, or via the positional `start!(b, :inherit)`),
+    # the field is resolved at vector build from the predecessor's endpoint; the
+    # stored `start_*` value is a placeholder until then.
+    inherit_start_point::Bool
+    inherit_start_tangent::Bool
+    inherit_start_curvature::Bool
 
     SubpathBuilder(; meta::AbstractVector{<:AbstractMeta} = AbstractMeta[]) =
         new(Vector{AbstractMeta}(meta),
             nothing, nothing, nothing,
             AbstractPathSegment[],
             nothing, nothing, nothing, nothing, AbstractMeta[],
-            nothing, false, 0.0, nothing, nothing)
+            nothing, false, 0.0, nothing, nothing,
+            false, false, false)
 end
 
 """
@@ -816,6 +824,11 @@ _check_unsealed(b::SubpathBuilder) =
 Seal the Subpath start state. Throws if `start!` has already been called or
 if any interior segment has already been appended.
 
+Each of `point`, `outgoing_tangent`, and `outgoing_curvature` may be an explicit
+tuple or the `:inherit` sentinel. An `:inherit` field is resolved at vector
+build (`build([...])`) from the predecessor Subpath's endpoint; it is only valid
+for a non-first Subpath. Any other symbol is rejected.
+
 `spin_rate` sets material spin over the whole Subpath:
 
 - `nothing` (default) — no spin.
@@ -827,6 +840,9 @@ if any interior segment has already been appended.
 
 The spin phase is always continuous across Subpath boundaries (see the
 file-header "Spin" section); it is resolved at build time, not here.
+
+See the two-argument [`start!(b, :inherit)`](@ref) for the expansive form that
+inherits the start state *and* the spin rate at once.
 """
 function start!(b::SubpathBuilder;
                 point = (0.0, 0.0, 0.0),
@@ -837,9 +853,18 @@ function start!(b::SubpathBuilder;
         throw(ArgumentError("SubpathBuilder: start!() already called"))
     !isempty(b.segments) &&
         throw(ArgumentError("SubpathBuilder: start!() must be called before any segments"))
-    b.start_point              = (Float64(point[1]),              Float64(point[2]),              Float64(point[3]))
-    b.start_outgoing_tangent   = (Float64(outgoing_tangent[1]),   Float64(outgoing_tangent[2]),   Float64(outgoing_tangent[3]))
-    b.start_outgoing_curvature = (Float64(outgoing_curvature[1]), Float64(outgoing_curvature[2]), Float64(outgoing_curvature[3]))
+    # Each start field may be an explicit tuple or the `:inherit` sentinel. An
+    # inherited field stores a placeholder now and is resolved at vector build
+    # from the predecessor's endpoint (see `_resolve_inherited_start`).
+    b.inherit_start_point     = _is_inherit(point,              "point")
+    b.inherit_start_tangent   = _is_inherit(outgoing_tangent,   "outgoing_tangent")
+    b.inherit_start_curvature = _is_inherit(outgoing_curvature, "outgoing_curvature")
+    b.start_point              = b.inherit_start_point     ? (0.0, 0.0, 0.0) :
+        (Float64(point[1]),              Float64(point[2]),              Float64(point[3]))
+    b.start_outgoing_tangent   = b.inherit_start_tangent   ? (0.0, 0.0, 1.0) :
+        (Float64(outgoing_tangent[1]),   Float64(outgoing_tangent[2]),   Float64(outgoing_tangent[3]))
+    b.start_outgoing_curvature = b.inherit_start_curvature ? (0.0, 0.0, 0.0) :
+        (Float64(outgoing_curvature[1]), Float64(outgoing_curvature[2]), Float64(outgoing_curvature[3]))
     if spin_rate === nothing || spin_rate === :inherit || spin_rate isa Function
         b.spin_rate = spin_rate
     elseif spin_rate isa Real
@@ -853,6 +878,45 @@ function start!(b::SubpathBuilder;
             "got $(typeof(spin_rate))"))
     end
     return b
+end
+
+"""
+    start!(builder, :inherit) -> builder
+
+Expansive inherit shorthand: continue the previous Subpath exactly. Inherits all
+three start fields (`point`, `outgoing_tangent`, `outgoing_curvature`) *and* the
+predecessor's `spin_rate`, all resolved at vector build. Only `:inherit` is
+accepted as the positional argument.
+
+Spin inheritance here is **lenient**: a non-spinning predecessor yields no spin
+(rather than erroring). This differs from the strict keyword
+`start!(b; spin_rate = :inherit)`, which requires the predecessor to actually
+spin.
+"""
+function start!(b::SubpathBuilder, mode::Symbol)
+    mode === :inherit ||
+        throw(ArgumentError("start!: positional argument must be :inherit; got :$mode"))
+    start!(b; point = :inherit, outgoing_tangent = :inherit,
+           outgoing_curvature = :inherit)
+    # Expansive form also carries the predecessor's spin forward. `:inherit_soft`
+    # is the lenient counterpart of the strict `:inherit` spin sentinel: it copies
+    # the predecessor's rate when present and resolves to no spin otherwise, so the
+    # geometry-only inherit cases (non-spinning predecessors) still build.
+    b.spin_rate = :inherit_soft
+    return b
+end
+
+"""
+    _is_inherit(value, field_name) -> Bool
+
+Return `true` if `value` is the `:inherit` sentinel, `false` if it is an ordinary
+tuple. Any other symbol is rejected with a pointed error naming `field_name`.
+"""
+_is_inherit(value, ::AbstractString) = false
+function _is_inherit(value::Symbol, field_name::AbstractString)
+    value === :inherit ||
+        throw(ArgumentError("start!: $field_name accepts a tuple or :inherit; got :$value"))
+    return true
 end
 
 """
@@ -1046,6 +1110,12 @@ struct Subpath
     # Whole-Subpath material spin (see SubpathBuilder).
     spin_rate::Union{Float64, Function, Nothing, Symbol}
     _spin_phi_at_s0::Union{Float64, Nothing}
+    # `:inherit` start-state flags (see SubpathBuilder). Resolved (and cleared)
+    # at vector build by `_resolve_inherited_start`; `false` on a standalone or
+    # already-resolved Subpath.
+    inherit_start_point::Bool
+    inherit_start_tangent::Bool
+    inherit_start_curvature::Bool
 end
 
 """
@@ -1076,7 +1146,10 @@ function Subpath(b::SubpathBuilder)
                    b.jumpto_natural,
                    b.jumpto_natural_extra,
                    b.spin_rate,
-                   b._spin_phi_at_s0)
+                   b._spin_phi_at_s0,
+                   b.inherit_start_point,
+                   b.inherit_start_tangent,
+                   b.inherit_start_curvature)
 end
 
 # Geometry queries on an unbuilt Subpath fail loudly.
@@ -1230,6 +1303,10 @@ inflection points where curvature → 0. For a fiber path the continuous frame i
 the desired one, as done here.
 """
 function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothing)::SubpathBuilt
+    (sub.inherit_start_point || sub.inherit_start_tangent || sub.inherit_start_curvature) &&
+        throw(ArgumentError("build(Subpath): start state uses :inherit but there is no " *
+                            "predecessor; :inherit is only valid for a non-first Subpath " *
+                            "in build([...])"))
     pos = collect(sub.start_point)
     T_frame, N_frame, B_frame = _initial_frame_from_tangent(sub.start_outgoing_tangent)
     K_in_global = collect(sub.start_outgoing_curvature)
@@ -1312,8 +1389,8 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
     jumpto_placed = PlacedSegment(connector, s_eff, copy(pos), copy(frame))
 
     # `:inherit` spin needs a predecessor; it can only be resolved by the
-    # vector build. A standalone build is by definition the first Subpath.
-    sub.spin_rate === :inherit && throw(ArgumentError(
+    # vector build. 
+    (sub.spin_rate === :inherit || sub.spin_rate === :inherit_soft) && throw(ArgumentError(
         "build(::Subpath): spin_rate=:inherit requires a predecessor; it is valid " *
         "only for a non-first Subpath in build([...])."))
     # `_spin_phi_at_s0 = 0.0` provisionally (correct for a first/standalone
@@ -1335,8 +1412,11 @@ inherit. Throws if the predecessor has no spin (nothing to inherit).
 The phase `_spin_phi_at_s0` is fixed up separately by [`_resolve_spin_phase`](@ref).
 """
 function _resolve_inherited_spin(sub::Subpath, prev_built::SubpathBuilt)
-    sub.spin_rate === :inherit || return sub
-    prev_built.spin_rate === nothing && throw(ArgumentError(
+    (sub.spin_rate === :inherit || sub.spin_rate === :inherit_soft) || return sub
+    # Strict `:inherit` requires a spinning predecessor; lenient `:inherit_soft`
+    # (set by the expansive `start!(b, :inherit)`) copies whatever the predecessor
+    # has, including no spin.
+    sub.spin_rate === :inherit && prev_built.spin_rate === nothing && throw(ArgumentError(
         "spin_rate=:inherit: the previous Subpath has no spin (spin_rate=nothing), " *
         "so there is no rate to inherit."))
     return Subpath(
@@ -1345,7 +1425,8 @@ function _resolve_inherited_spin(sub::Subpath, prev_built::SubpathBuilt)
         sub.jumpto_incoming_tangent, sub.jumpto_incoming_curvature,
         sub.jumpto_min_bend_radius, sub.jumpto_meta, sub.jumpto_twist,
         sub.jumpto_natural, sub.jumpto_natural_extra,
-        prev_built.spin_rate, sub._spin_phi_at_s0)
+        prev_built.spin_rate, sub._spin_phi_at_s0,
+        sub.inherit_start_point, sub.inherit_start_tangent, sub.inherit_start_curvature)
 end
 
 """
@@ -1384,6 +1465,78 @@ _tuple_isapprox(a::NTuple{3, Float64}, b::NTuple{3, Float64};
     all(isapprox(a[i], b[i]; atol = atol, rtol = rtol) for i in 1:3)
 
 """
+    _subpath_endpoint_state(prev_built) -> (point, tangent, curvature)
+
+Return the endpoint state of a built Subpath as
+`(point::NTuple{3,Float64}, tangent::Union{Nothing,NTuple{3,Float64}},
+curvature::Union{Nothing,NTuple{3,Float64}})`.
+
+For a naturally-sealed predecessor (`jumpto_natural`), the point and tangent are
+read from the built geometry (nominalized) and there is no declared end curvature
+(`nothing`). For a `jumpto!`-sealed predecessor they come from the declared
+`jumpto_point` / `jumpto_incoming_tangent` / `jumpto_incoming_curvature` (the
+latter two may be `nothing`).
+"""
+function _subpath_endpoint_state(prev_built::SubpathBuilt)
+    prev = prev_built.subpath
+    if prev.jumpto_natural
+        s_e        = Float64(_qc_nominalize(s_end(prev_built)))
+        ep_point   = Tuple(Float64.(position(prev_built, s_e)))::NTuple{3, Float64}
+        ep_tangent = Tuple(Float64.(tangent(prev_built, s_e)))::NTuple{3, Float64}
+        return (ep_point, ep_tangent, nothing)
+    else
+        return (prev.jumpto_point::NTuple{3, Float64},
+                prev.jumpto_incoming_tangent,
+                prev.jumpto_incoming_curvature)
+    end
+end
+
+"""
+    _resolve_inherited_start(cur, prev_built) -> Subpath
+
+Resolve a Subpath's `:inherit` start fields from the predecessor's endpoint.
+Returns `cur` unchanged when no inherit flag is set. Otherwise builds a new
+`Subpath` with each flagged field replaced by a concrete value:
+
+- `point` ← the predecessor endpoint point;
+- `outgoing_tangent` ← the declared incoming tangent, or — when the predecessor
+  was `jumpto!`-sealed with a chord-direction default (`nothing`) — the actual
+  exit tangent queried from the built geometry;
+- `outgoing_curvature` ← the declared incoming curvature, or `(0,0,0)` when none
+  was declared (matching conformity, which only ever checks declared curvature).
+
+The inherit flags are cleared so the resolved Subpath builds standalone.
+"""
+function _resolve_inherited_start(cur::Subpath, prev_built::SubpathBuilt)
+    (cur.inherit_start_point || cur.inherit_start_tangent ||
+     cur.inherit_start_curvature) || return cur
+    point, tangent, curvature = _subpath_endpoint_state(prev_built)
+    new_point = cur.inherit_start_point ? point : cur.start_point
+    new_tangent = if cur.inherit_start_tangent
+        # Chord-direction default (nothing) is only realized once the connector is
+        # built, so query the built exit tangent for a concrete vector.
+        isnothing(tangent) ?
+            Tuple(Float64.(end_tangent(prev_built)))::NTuple{3, Float64} : tangent
+    else
+        cur.start_outgoing_tangent
+    end
+    new_curvature = if cur.inherit_start_curvature
+        isnothing(curvature) ? (0.0, 0.0, 0.0) : curvature
+    else
+        cur.start_outgoing_curvature
+    end
+    # Preserve spin_rate (possibly still `:inherit`/`:inherit_soft`, resolved by
+    # `_resolve_inherited_spin` afterward) and clear the start-state inherit flags
+    # so the returned Subpath builds standalone.
+    return Subpath(cur.meta, new_point, new_tangent, new_curvature, cur.segments,
+                   cur.jumpto_point, cur.jumpto_incoming_tangent,
+                   cur.jumpto_incoming_curvature, cur.jumpto_min_bend_radius,
+                   cur.jumpto_meta, cur.jumpto_twist, cur.jumpto_natural,
+                   cur.jumpto_natural_extra, cur.spin_rate, cur._spin_phi_at_s0,
+                   false, false, false)
+end
+
+"""
     _check_subpath_conformity(prev_built, cur, idx)
 
 Throw unless the endpoint state of `prev_built` matches the start state of the
@@ -1394,15 +1547,7 @@ Throw unless the endpoint state of `prev_built` matches the start state of the
 the built geometry rather than from a (nonexistent) global jumpto spec.
 """
 function _check_subpath_conformity(prev_built::SubpathBuilt, cur::Subpath, idx::Int)
-    prev = prev_built.subpath
-    if prev.jumpto_natural
-        s_e         = Float64(_qc_nominalize(s_end(prev_built)))
-        jump_point  = Tuple(Float64.(position(prev_built, s_e)))::NTuple{3, Float64}
-        jump_tangent = Tuple(Float64.(tangent(prev_built, s_e)))::NTuple{3, Float64}
-    else
-        jump_point   = prev.jumpto_point::NTuple{3, Float64}
-        jump_tangent = prev.jumpto_incoming_tangent
-    end
+    jump_point, jump_tangent, pk = _subpath_endpoint_state(prev_built)
     if !_tuple_isapprox(jump_point, cur.start_point)
         throw(ArgumentError(
             "PathBuilt: Subpath $(idx-1) endpoint $(jump_point) " *
@@ -1420,7 +1565,6 @@ function _check_subpath_conformity(prev_built::SubpathBuilt, cur::Subpath, idx::
                 "does not match Subpath $idx start_outgoing_tangent $ct"))
         end
     end
-    pk = prev.jumpto_incoming_curvature
     ck = cur.start_outgoing_curvature
     if !isnothing(pk)
         if !_tuple_isapprox(pk, ck)
@@ -1463,7 +1607,10 @@ function build(subpaths::Vector{Subpath}; perturb::Bool = false)
     builts = Vector{SubpathBuilt}(undef, length(subpaths))
     builts[1] = build(subpaths[1]; perturb)
     for i in 2:length(subpaths)
-        resolved = _resolve_inherited_spin(subpaths[i], builts[i-1])
+        # Resolve start-state inheritance first (needs the built predecessor's
+        # endpoint), then spin inheritance, then build the now-concrete Subpath.
+        resolved = _resolve_inherited_start(subpaths[i], builts[i-1])
+        resolved = _resolve_inherited_spin(resolved, builts[i-1])
         builts[i] = build(resolved; perturb)
     end
     return build(builts)
