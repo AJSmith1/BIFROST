@@ -423,9 +423,9 @@ query path is degenerate-safe in `QuinticConnector` (zero speed maps to the
 local ẑ tangent). `extra > 0` yields an exact straight line `r(u) = (0,0,extra·u)`
 with a linear arc-length table.
 
-`meta` is the seal's annotation bag (e.g. a `Spinning` placed on `seal!`); it is
-stored on the connector so it participates in spinning resolution like any other
-segment's meta.
+`meta` is the seal's annotation bag; it is stored on the connector so any
+consuming-layer annotation (e.g. a thermal `:T_K`) is carried through like any
+other segment's meta.
 """
 function _build_straight_connector(extra::Real, ::Type{T};
                                    meta::AbstractVector{<:AbstractMeta} = AbstractMeta[]) where {T<:Real}

@@ -45,9 +45,9 @@ mutable struct _PathSequence
     current::Union{SubpathBuilder, Nothing}
 end
 
-function _path_sequence()
-    sb = SubpathBuilder(); start!(sb)
-    return _PathSequence(SubpathBuilder[], sb)
+function PathSpecBuilder(; spin_rate = nothing)
+    sb = SubpathBuilder(); start!(sb; spin_rate = spin_rate)
+    return _PathProxy(SubpathBuilder[], sb)
 end
 
 # Forward interior-segment builders to the current Subpath.

@@ -181,8 +181,7 @@ function _resolve_thermal_subpath(sub::Subpath, cross_section::FiberCrossSection
         sub.jumpto_incoming_tangent, sub.jumpto_incoming_curvature,
         sub.jumpto_min_bend_radius, _meta_without(sub.jumpto_meta, :T_K),
         sub.jumpto_natural, sub.jumpto_natural_extra,
-        sub.inherit_start_point, sub.inherit_start_tangent,
-        sub.inherit_start_curvature,
+        sub.spin_rate, sub._spin_phi_at_s0,
     )
     return (resolved, jumpto_target_length)
 end
@@ -193,15 +192,14 @@ function _build_perturbed(sub::Subpath, cross_section::FiberCrossSection, T_ref_
 end
 
 function _build_perturbed(subs::Vector{Subpath}, cross_section::FiberCrossSection, T_ref_K)
-    # Build sequentially so `:inherit` start fields resolve from the prior built
-    # (thermally expanded, perturbed) endpoint — keeping the chain connected under
-    # thermal expansion. Inherited starts must be resolved before thermal
-    # resolution, which itself probe-builds the Subpath standalone.
-    isempty(subs) && throw(ArgumentError("PathBuilt: at least one Subpath required"))
+    isempty(subs) && throw(ArgumentError("Fiber: at least one Subpath required"))
+    # Build in order so `spin_rate = :inherit` resolves against the prior
+    # thermal+perturbed built Subpath before this one is built.
     builts = Vector{SubpathBuilt}(undef, length(subs))
     for i in eachindex(subs)
-        sub = i == 1 ? subs[i] : _resolve_inherited_start(subs[i], builts[i-1])
-        (resolved, target) = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
+        sub = i == 1 ? subs[i] :
+              PathGeometry._resolve_inherited_spin(subs[i], builts[i-1])
+        resolved, target = _resolve_thermal_subpath(sub, cross_section, T_ref_K)
         builts[i] = build(resolved; perturb = true, jumpto_target_length = target)
     end
     return build(builts)
@@ -249,6 +247,31 @@ fiber_path(f::Fiber) = f.path
 
 zero_generator() = zeros(ComplexF64, 2, 2)
 
+"""
+    linear_birefringence_generator(Δβ, c2φ, s2φ) -> 2×2 matrix
+
+Local Jones generator for a linear retarder with retardance per unit length
+`Δβ` and eigen-axes oriented at angle `φ` in the propagation frame, encoded
+via `c2φ = cos(2φ)` and `s2φ = sin(2φ)`. Traceless, anti-Hermitian times `i`.
+Shared by the bend, core-ellipticity, and asymmetric-thermal-stress generators.
+"""
+linear_birefringence_generator(Δβ, c2φ, s2φ) = [
+     0.5im * Δβ * c2φ    0.5im * Δβ * s2φ
+     0.5im * Δβ * s2φ   -0.5im * Δβ * c2φ
+]
+
+"""
+    circular_birefringence_generator(Δβc) -> 2×2 matrix
+
+Local Jones generator for circular birefringence (optical activity) with
+rotation rate `Δβc`. Real antisymmetric — a pure SO(2) rotation generator.
+Used by the mechanical-twist generator.
+"""
+circular_birefringence_generator(Δβc) = [
+     zero(Δβc)   -0.5 * Δβc
+     0.5 * Δβc    zero(Δβc)
+]
+
 function bend_generator_K(f::Fiber, s::Real, λ_m::Real)
     curv = bend_components(f.path, s)
     if curv.k2 == zero(curv.k2)
@@ -260,10 +283,7 @@ function bend_generator_K(f::Fiber, s::Real, λ_m::Real)
     Δβb = bending_birefringence(f.cross_section, λ_m, T; bend_radius_m = R)
     c2φ = (curv.kx * curv.kx - curv.ky * curv.ky) / curv.k2
     s2φ = (2 * curv.kx * curv.ky) / curv.k2
-    return [
-         0.5im * Δβb * c2φ             0.5im * Δβb * s2φ
-         0.5im * Δβb * s2φ            -0.5im * Δβb * c2φ
-    ]
+    return linear_birefringence_generator(Δβb, c2φ, s2φ)
 end
 
 function bend_generator_Kω(f::Fiber, s::Real, λ_m::Real)
@@ -283,20 +303,14 @@ function bend_generator_Kω(f::Fiber, s::Real, λ_m::Real)
     ).dω
     c2φ = (curv.kx * curv.kx - curv.ky * curv.ky) / curv.k2
     s2φ = (2 * curv.kx * curv.ky) / curv.k2
-    return [
-         0.5im * Δβbω * c2φ             0.5im * Δβbω * s2φ
-         0.5im * Δβbω * s2φ            -0.5im * Δβbω * c2φ
-    ]
+    return linear_birefringence_generator(Δβbω, c2φ, s2φ)
 end
 
 function spinning_generator_K(f::Fiber, s::Real, λ_m::Real)
     tau = frame_rotation_rate(f.path, s)
     T = f.T_ref_K
     Δβt = twisting_birefringence(f.cross_section, λ_m, T; twist_rate_rad_per_m = tau)
-    return [
-         0.0           -0.5 * Δβt
-         0.5 * Δβt      0.0
-    ]
+    return circular_birefringence_generator(Δβt)
 end
 
 function spinning_generator_Kω(f::Fiber, s::Real, λ_m::Real)
@@ -309,10 +323,7 @@ function spinning_generator_Kω(f::Fiber, s::Real, λ_m::Real)
         T;
         twist_rate_rad_per_m = tau
     ).dω
-    return [
-         0.0           -0.5 * Δβtω
-         0.5 * Δβtω     0.0
-    ]
+    return circular_birefringence_generator(Δβtω)
 end
 
 fiber_breakpoints(f::Fiber) = breakpoints(f.path)
