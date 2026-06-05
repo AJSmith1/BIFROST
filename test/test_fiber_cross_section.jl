@@ -63,19 +63,15 @@ function reference_beta2(fiber, λ_m, T_K; dλ = 0.1e-9)
     return -(λ_m^2 / (2π * TEST_C)) * (reference_d(fiber, λ_m, T_K; dλ = dλ) * 1e-6)
 end
 
-function reference_eccentricity_squared(axis_ratio; signed = false)
+function reference_eccentricity_squared(axis_ratio)
     ε = Float64(axis_ratio)
-    if ε >= 1.0
-        return 1 - inv(ε)^2
-    end
-    value = 1 - ε^2
-    return signed ? -value : value
+    return 1 - inv(ε)^2
 end
 
 function reference_core_noncircularity_birefringence(fiber, λ_m, T_K; axis_ratio)
     n_core, n_clad = reference_indices(fiber, λ_m, T_K)
     v = reference_v(fiber, λ_m, T_K)
-    e2 = reference_eccentricity_squared(axis_ratio; signed = true)
+    e2 = reference_eccentricity_squared(axis_ratio)
     return (e2 * (1 - n_clad^2 / n_core^2)^(3 / 2)) / core_radius(fiber) *
            (4 / v^3) * log(v)^3 / (1 + log(v))
 end
