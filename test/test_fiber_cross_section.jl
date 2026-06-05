@@ -63,19 +63,15 @@ function reference_beta2(fiber, λ_m, T_K; dλ = 0.1e-9)
     return -(λ_m^2 / (2π * TEST_C)) * (reference_d(fiber, λ_m, T_K; dλ = dλ) * 1e-6)
 end
 
-function reference_eccentricity_squared(axis_ratio; signed = false)
+function reference_eccentricity_squared(axis_ratio)
     ε = Float64(axis_ratio)
-    if ε >= 1.0
-        return 1 - inv(ε)^2
-    end
-    value = 1 - ε^2
-    return signed ? -value : value
+    return 1 - inv(ε)^2
 end
 
 function reference_core_noncircularity_birefringence(fiber, λ_m, T_K; axis_ratio)
     n_core, n_clad = reference_indices(fiber, λ_m, T_K)
     v = reference_v(fiber, λ_m, T_K)
-    e2 = reference_eccentricity_squared(axis_ratio; signed = true)
+    e2 = reference_eccentricity_squared(axis_ratio)
     return (e2 * (1 - n_clad^2 / n_core^2)^(3 / 2)) / core_radius(fiber) *
            (4 / v^3) * log(v)^3 / (1 + log(v))
 end
@@ -248,14 +244,16 @@ end
     @test twisting_birefringence(fiber, λ, T; twist_rate_rad_per_m = tr) ≈
           reference_twisting_birefringence(fiber, λ, T; twist_rate_rad_per_m = tr) rtol = 1e-12
 
-    # Magnitude convention: the cross-section returns the unsigned birefringence
-    # *magnitude* (ε and 1/ε describe the same ellipse rotated 90°), so swapping
-    # the axes leaves the magnitude unchanged. The antisymmetric sign/orientation
-    # is the fiber generator's job (ellipticity_axis_angle), applied downstream.
-    @test core_noncircularity_birefringence(fiber, λ, T; axis_ratio = inv(ε)) ≈
-          core_noncircularity_birefringence(fiber, λ, T; axis_ratio = ε) rtol = 1e-12
-    @test asymmetric_thermal_stress_birefringence(fiber, λ, T; axis_ratio = inv(ε)) ≈
-          asymmetric_thermal_stress_birefringence(fiber, λ, T; axis_ratio = ε) rtol = 1e-12
+    # T-GUARDRAIL: axis_ratio is canonical (≥ 1, major/minor). A ratio < 1 is the
+    # same ellipse rotated 90°, expressed non-canonically, and is rejected at the
+    # shared validator — both at construction and on per-call `axis_ratio=` overrides.
+    @test_throws ArgumentError validate_axis_ratio(inv(ε))
+    @test_throws ArgumentError core_noncircularity_birefringence(fiber, λ, T; axis_ratio = inv(ε))
+    @test_throws ArgumentError asymmetric_thermal_stress_birefringence(fiber, λ, T; axis_ratio = inv(ε))
+    @test_throws ArgumentError StepIndexCrossSection(
+        SilicaGermaniaGlass(0.036), SilicaGermaniaGlass(0.0), 8.2e-6, 125e-6;
+        ellipticity_axis_ratio = 0.9
+    )
 end
 
 @testset "StepIndexCrossSection guided and fluorinated edge cases" begin

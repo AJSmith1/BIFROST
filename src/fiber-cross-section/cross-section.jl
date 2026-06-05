@@ -50,8 +50,8 @@ function validate_bend_radius(bend_radius_m)
 end
 
 function validate_axis_ratio(axis_ratio)
-    if !(isfinite(axis_ratio) && axis_ratio > zero(axis_ratio))
-        throw(ArgumentError("axis_ratio must be a finite positive value"))
+    if !(isfinite(axis_ratio) && axis_ratio >= one(axis_ratio))
+        throw(ArgumentError("axis_ratio must be a finite value >= 1 (major/minor)"))
     end
     return axis_ratio
 end
