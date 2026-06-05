@@ -168,11 +168,6 @@ needs to be carefully vetted with Particles.
 """
 
 function _validate_law(law, name::String)
-    # Accept numbers (includes Particles, Int, Float64, etc.)
-    if isa(law, Number)
-        return nothing
-    end
-    
     # Accept anything callable
     if applicable(law, 273.15)
         return nothing
@@ -188,9 +183,11 @@ struct SellmeierTerm{TB, TC}
     C_law::TC
 
     function SellmeierTerm(B_law, C_law)
-        _validate_law(B_law, "B_law")
-        _validate_law(C_law, "C_law")
-        return new{typeof(B_law), typeof(C_law)}(B_law, C_law)
+        B_law_norm = B_law isa Number ? (x -> B_law * one(x)) : B_law
+        C_law_norm = C_law isa Number ? (x -> C_law * one(x)) : C_law
+        _validate_law(B_law_norm, "B_law")
+        _validate_law(C_law_norm, "C_law")
+        return new{typeof(B_law_norm), typeof(C_law_norm)}(B_law_norm, C_law_norm)
     end
 end
 

@@ -25,18 +25,9 @@ cte_value = cte(glass, T_K)
 #
 #################################################
 
-const GERMANIA_TERM_1 = SellmeierTerm(
-    _ -> 0.80686642, 
-    _ -> 0.068972606
-)
-const GERMANIA_TERM_2 = SellmeierTerm(
-    _ -> 0.71815848,
-    _ -> 0.15396605
-)
-const GERMANIA_TERM_3 = SellmeierTerm(
-    _ -> 0.85416831,
-    _ -> 11.841931
-)
+const GERMANIA_TERM_1 = SellmeierTerm(0.80686642, 0.068972606)
+const GERMANIA_TERM_2 = SellmeierTerm(0.71815848, 0.15396605)
+const GERMANIA_TERM_3 = SellmeierTerm(0.85416831, 11.841931)
 
 const GERMANIA_REFERENCE_TEMPERATURE_K = 297.15
 
