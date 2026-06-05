@@ -536,7 +536,16 @@ end
 # polarization tracks the geometric rotation of the medium (the leading `1`)
 # reduced by the photoelastic slip `n²(p₁₁−p₁₂)/2` (negative for silica), so the
 # net rotation rate is `(1 + n²(p₁₁−p₁₂)/2)·τ_m`. The generator places this on
-# the real antisymmetric (rotation) part of K; see `circular_birefringence_generator`.
+# the real antisymmetric (rotation) part of K; see `circular_birefringence_generator
+#
+# We believe this method is correct.
+# It is wrong in v1 of our 2025 paper [1] and in the seminal 1983 Rashleigh paper [2].
+# Our implementation agrees with [3] which contains experimental validation.
+#
+# [1] arxiv.org/abs/2510.01212v1
+# [2] 10.1109/JLT.1983.1072121
+# [3] 10.1016/j.yofte.2011.10.001
+
 function twisting_dω(
     style::SpectralStyle,
     fiber::StepIndexCrossSection,
