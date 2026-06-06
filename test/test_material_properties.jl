@@ -1,6 +1,8 @@
 using Test
 using Bifrost
 
+const MP = Bifrost.MaterialProperties
+
 const SILICA_B_COEFFS = (
     (1.10127, -4.94251e-5, 5.27414e-7, -1.59700e-9, 1.75949e-12),
     (1.78752e-5, 4.76391e-5, -4.49019e-7, 1.44546e-9, -1.57223e-12),
@@ -25,11 +27,13 @@ const FLUORINE_BC = (
     ((233.5, -5.82), (1090.5, -24.695))
 )
 
-reference_polynomial(coeffs, T_kelvin) = sum(coeffs[i] * T_kelvin^(i - 1) for i in eachindex(coeffs))
+reference_polynomial(coeffs, T_kelvin) =
+    sum(coeffs[i] * T_kelvin^(i - 1) for i in eachindex(coeffs))
 reference_constant(value, _) = value
 reference_quadratic(quadratic, linear, x) = quadratic * x^2 + linear * x
 reference_scalar_mix(a, b, x) = (1 - x) * a + x * b
-reference_pair_mix(a, b, x) = (reference_scalar_mix(a[1], b[1], x), reference_scalar_mix(a[2], b[2], x))
+reference_pair_mix(a, b, x) =
+    (reference_scalar_mix(a[1], b[1], x), reference_scalar_mix(a[2], b[2], x))
 
 function reference_sellmeier_index(coeffs, λ_meters)
     λ_um = λ_meters * 1e6
@@ -47,7 +51,8 @@ function reference_silica_coefficients(T_kelvin)
     ), 3)
 end
 
-reference_silica_index(λ_meters, T_kelvin) = reference_sellmeier_index(reference_silica_coefficients(T_kelvin), λ_meters)
+reference_silica_index(λ_meters, T_kelvin) =
+    reference_sellmeier_index(reference_silica_coefficients(T_kelvin), λ_meters)
 
 function reference_germania_base_coefficients(T_kelvin)
     return ntuple(i -> (
@@ -64,7 +69,10 @@ function reference_germania_thermo_optic_shift(T_kelvin)
 end
 
 function reference_germania_index(λ_meters, T_kelvin)
-    n_ref = reference_sellmeier_index(reference_germania_base_coefficients(T_kelvin), λ_meters)
+    n_ref = reference_sellmeier_index(
+        reference_germania_base_coefficients(T_kelvin),
+        λ_meters
+    )
     return n_ref + reference_germania_thermo_optic_shift(T_kelvin)
 end
 
@@ -78,7 +86,8 @@ function reference_fluorinated_coefficients(x_f, T_kelvin)
     end, 3)
 end
 
-reference_fluorinated_index(λ_meters, T_kelvin, x_f) = reference_sellmeier_index(reference_fluorinated_coefficients(x_f, T_kelvin), λ_meters)
+reference_fluorinated_index(λ_meters, T_kelvin, x_f) =
+    reference_sellmeier_index(reference_fluorinated_coefficients(x_f, T_kelvin), λ_meters)
 
 function unsupported_message(f)
     try
@@ -96,7 +105,7 @@ function finite_difference_dω(f, λ_meters; dλ = 1e-12)
     return df_dλ * reference_dλ_dω(λ_meters)
 end
 
-@testset "Helper laws and constructors" begin
+@testset "Constructors and Sellmeier internals" begin
     @test SilicaGermaniaGlass(0.0).x_ge == 0.0
     @test SilicaGermaniaGlass(1.0).x_ge == 1.0
     @test SilicaFluorinatedGlass(0.0).x_f == 0.0
@@ -106,16 +115,35 @@ end
     @test_throws ArgumentError SilicaGermaniaGlass(1.000001)
     @test_throws ArgumentError SilicaFluorinatedGlass(-1e-6)
     @test_throws ArgumentError SilicaFluorinatedGlass(1.000001)
+
+    exported_names = Set(names(MP))
+    old_sellmeier_helpers = (
+        :TemperaturePolynomial,
+        :SellmeierConstantLaw,
+        :SellmeierQuadraticMolarLaw,
+        :SellmeierTerm,
+        :SellmeierCorrectionTerm,
+        :evaluate,
+        :sellmeier_coefficients,
+        :SILICA_TERM_1,
+        :GERMANIA_TERM_1,
+        :FLUORINE_TERM_1,
+    )
+    # T-GUARDRAIL: Sellmeier coefficient representation is private data, not API.
+    for name in old_sellmeier_helpers
+        @test !(name in exported_names)
+    end
 end
 
 @testset "SiO2" begin
     silica = SiO2()
-    terms = silica.sellmeier_terms
-    @test length(terms) == 3
-    @test terms isa NTuple{3, SellmeierTerm}
+
+    # T-VALIDATION: Leviton and Frey fused-silica Sellmeier data,
+    # doi:10.1117/12.672853.
+    @test SILICA_C_COEFFS[3][2] == -7.09788e-3
 
     for T in (243.0, 297.15, 373.0)
-        actual = sellmeier_coefficients(silica, T)
+        actual = MP._sellmeier_coefficients(silica, T)
         expected = reference_silica_coefficients(T)
         @test length(actual) == 3
         for i in 1:3
@@ -125,7 +153,8 @@ end
     end
 
     for (λ, T) in ((1300e-9, 243.0), (1550e-9, 297.15), (1700e-9, 373.0))
-        @test refractive_index(silica, λ, T) ≈ reference_silica_index(λ, T) atol = 1e-12 rtol = 1e-12
+        @test refractive_index(silica, λ, T) ≈
+              reference_silica_index(λ, T) atol = 1e-12 rtol = 1e-12
     end
 
     λs = range(1300e-9, 1700e-9; length = 4)
@@ -139,13 +168,18 @@ end
     germania = GeO2()
 
     for (λ, T) in ((1300e-9, 243.0), (1550e-9, 297.15), (1700e-9, 373.0))
-        @test refractive_index(germania, λ, T) ≈ reference_germania_index(λ, T) atol = 1e-12 rtol = 1e-12
+        @test refractive_index(germania, λ, T) ≈
+              reference_germania_index(λ, T) atol = 1e-12 rtol = 1e-12
     end
 
     λ = 1550e-9
     n_ref = refractive_index(germania, λ, 297.15)
     n_warm = refractive_index(germania, λ, 350.0)
-    @test n_ref ≈ reference_sellmeier_index(reference_germania_base_coefficients(297.15), λ) atol = 1e-12 rtol = 1e-12
+    n_ref_expected = reference_sellmeier_index(
+        reference_germania_base_coefficients(297.15),
+        λ
+    )
+    @test n_ref ≈ n_ref_expected atol = 1e-12 rtol = 1e-12
     @test reference_germania_thermo_optic_shift(297.15) == 0.0
     @test n_warm > n_ref
 
@@ -171,19 +205,36 @@ end
     @test poisson_ratio(pure_silica_glass, T) == poisson_ratio(SiO2(), T)
     @test poisson_ratio(pure_germania_glass, T) == poisson_ratio(GeO2(), T)
     @test photoelastic_constants(pure_silica_glass, T) == photoelastic_constants(SiO2(), T)
-    @test photoelastic_constants(pure_germania_glass, T) == photoelastic_constants(GeO2(), T)
+    @test photoelastic_constants(pure_germania_glass, T) ==
+          photoelastic_constants(GeO2(), T)
     @test youngs_modulus(pure_silica_glass, T) == youngs_modulus(SiO2(), T)
     @test youngs_modulus(pure_germania_glass, T) == youngs_modulus(GeO2(), T)
 
     for x in (0.036, 0.25)
         glass = SilicaGermaniaGlass(x)
-        n_expected = reference_scalar_mix(reference_silica_index(λ, T), reference_germania_index(λ, T), x)
+        n_expected = reference_scalar_mix(
+            reference_silica_index(λ, T),
+            reference_germania_index(λ, T),
+            x
+        )
         @test refractive_index(glass, λ, T) ≈ n_expected atol = 1e-12 rtol = 1e-12
         @test cte(glass, T) == reference_scalar_mix(SILICA_CTE, GERMANIA_CTE, x)
-        @test softening_temperature(glass, T) == reference_scalar_mix(SILICA_SOFTENING_TEMPERATURE_K, GERMANIA_SOFTENING_TEMPERATURE_K, x)
-        @test poisson_ratio(glass, T) == reference_scalar_mix(SILICA_POISSON_RATIO, GERMANIA_POISSON_RATIO, x)
-        @test photoelastic_constants(glass, T) == reference_pair_mix(SILICA_PHOTOELASTIC_CONSTANTS, GERMANIA_PHOTOELASTIC_CONSTANTS, x)
-        @test youngs_modulus(glass, T) == reference_scalar_mix(SILICA_YOUNGS_MODULUS, GERMANIA_YOUNGS_MODULUS, x)
+        @test softening_temperature(glass, T) ==
+              reference_scalar_mix(
+                  SILICA_SOFTENING_TEMPERATURE_K,
+                  GERMANIA_SOFTENING_TEMPERATURE_K,
+                  x
+              )
+        @test poisson_ratio(glass, T) ==
+              reference_scalar_mix(SILICA_POISSON_RATIO, GERMANIA_POISSON_RATIO, x)
+        @test photoelastic_constants(glass, T) ==
+              reference_pair_mix(
+                  SILICA_PHOTOELASTIC_CONSTANTS,
+                  GERMANIA_PHOTOELASTIC_CONSTANTS,
+                  x
+              )
+        @test youngs_modulus(glass, T) ==
+              reference_scalar_mix(SILICA_YOUNGS_MODULUS, GERMANIA_YOUNGS_MODULUS, x)
     end
 
     glass0 = SilicaGermaniaGlass(0.0)
@@ -191,7 +242,9 @@ end
     glass_large = SilicaGermaniaGlass(1.0)
     @test refractive_index(glass_small, λ, T) > refractive_index(glass0, λ, T)
     @test cte(glass0, T) < cte(glass_small, T) < cte(glass_large, T)
-    @test poisson_ratio(glass0, T) < poisson_ratio(glass_small, T) < poisson_ratio(glass_large, T)
+    @test poisson_ratio(glass0, T) <
+          poisson_ratio(glass_small, T) <
+          poisson_ratio(glass_large, T)
 
     p11, p12 = photoelastic_constants(SilicaGermaniaGlass(0.036), T)
     @test p11 isa Float64
@@ -204,14 +257,23 @@ end
     T = 297.15
 
     undoped = SilicaFluorinatedGlass(0.0)
-    @test refractive_index(undoped, λ, T) ≈ refractive_index(SiO2(), λ, T) atol = 1e-12 rtol = 1e-12
+    @test refractive_index(undoped, λ, T) ≈
+          refractive_index(SiO2(), λ, T) atol = 1e-12 rtol = 1e-12
 
     for x in (0.01, 0.02)
         glass = SilicaFluorinatedGlass(x)
-        @test refractive_index(glass, λ, T) ≈ reference_fluorinated_index(λ, T, x) atol = 1e-12 rtol = 1e-12
+        actual = MP._sellmeier_coefficients(glass, T)
+        expected = reference_fluorinated_coefficients(x, T)
+        for i in 1:3
+            @test actual[i][1] ≈ expected[i][1] atol = 1e-12 rtol = 1e-12
+            @test actual[i][2] ≈ expected[i][2] atol = 1e-12 rtol = 1e-12
+        end
+        @test refractive_index(glass, λ, T) ≈
+              reference_fluorinated_index(λ, T, x) atol = 1e-12 rtol = 1e-12
     end
 
-    @test refractive_index(SilicaFluorinatedGlass(0.01), λ, T) < refractive_index(SiO2(), λ, T)
+    @test refractive_index(SilicaFluorinatedGlass(0.01), λ, T) <
+          refractive_index(SiO2(), λ, T)
 
     unsupported_calls = [
         () -> cte(SilicaFluorinatedGlass(0.01), T),
@@ -276,6 +338,7 @@ end
         resp = refractive_index(WithDerivative(), material, λ, T)
         @test resp isa SpectralResponse
         @test resp.value ≈ scalar atol = 1e-14 rtol = 1e-14
-        @test resp.dω ≈ finite_difference_dω(λp -> refractive_index(material, λp, T), λ) atol = 1e-18 rtol = 1e-6
+        dω_expected = finite_difference_dω(λp -> refractive_index(material, λp, T), λ)
+        @test resp.dω ≈ dω_expected atol = 1e-18 rtol = 1e-6
     end
 end

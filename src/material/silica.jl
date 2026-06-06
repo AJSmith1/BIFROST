@@ -25,22 +25,17 @@ cte_value = cte(glass, T_K)
 #
 #################################################
 
-# Sellmeier polynomial coefficients from Leviton and Frey,
-# Optomechanical Technologies for Astronomy 2006.
-
-const SILICA_TERM_1 = SellmeierTerm(
-    T -> 1.10127 - 4.94251e-5*T + 5.27414e-7*T^2 - 1.59700e-9*T^3 + 1.75949e-12*T^4,
-    T -> -8.906e-2 + 9.0873e-6*T - 6.53638e-8*T^2 + 7.77072e-11*T^3 + 6.84605e-14*T^4
+# Sellmeier polynomial coefficients from Leviton and Frey, doi:10.1117/12.672853.
+const _SILICA_SELLMEIER_B_COEFFS = (
+    (1.10127, -4.94251e-5, 5.27414e-7, -1.59700e-9, 1.75949e-12),
+    (1.78752e-5, 4.76391e-5, -4.49019e-7, 1.44546e-9, -1.57223e-12),
+    (7.93552e-1, -1.27815e-3, 1.84595e-5, -9.20275e-8, 1.48829e-10)
 )
 
-const SILICA_TERM_2 = SellmeierTerm(
-    T -> 1.78752e-5 + 4.76391e-5*T - 4.49019e-7*T^2 + 1.44546e-9*T^3 - 1.57223e-12*T^4,
-    T -> 2.97562e-1 - 8.59578e-4*T + 6.59069e-6*T^2 - 1.09482e-8*T^3 + 7.85145e-13*T^4
-)
-
-const SILICA_TERM_3 = SellmeierTerm(
-    T -> 7.93552e-1 - 1.27815e-3*T + 1.84595e-5*T^2 - 9.20275e-8*T^3 + 1.48829e-10*T^4,
-    T -> 9.34454 - 7.09788e-3*T + 1.01968e-4*T^2 - 5.07660e-7*T^3 + 8.21348e-10*T^4
+const _SILICA_SELLMEIER_C_COEFFS = (
+    (-8.906e-2, 9.0873e-6, -6.53638e-8, 7.77072e-11, 6.84605e-14),
+    (2.97562e-1, -8.59578e-4, 6.59069e-6, -1.09482e-8, 7.85145e-13),
+    (9.34454, -7.09788e-3, 1.01968e-4, -5.07660e-7, 8.21348e-10)
 )
 
 const SILICA_CTE = 5.4e-7
@@ -61,12 +56,9 @@ const SILICA_N2 = 2.2e-20
 #
 #################################################
 
-struct SiO2 <: AbstractMaterial
-    sellmeier_terms::NTuple{3, SellmeierTerm}
-end
+struct SiO2 <: AbstractMaterial end
 
-const PURE_SILICA = SiO2((SILICA_TERM_1, SILICA_TERM_2, SILICA_TERM_3))
-SiO2() = PURE_SILICA
+const PURE_SILICA = SiO2()
 
 #################################################
 #
@@ -74,16 +66,22 @@ SiO2() = PURE_SILICA
 #
 #################################################
 
-# Override sellmeier_coefficients_generic to do validation of T_K
-function sellmeier_coefficients(material::SiO2, T_K)
+function _sellmeier_coefficients(::SiO2, T_K)
     T = validate_model_temperature(T_K)
-    return map(term -> evaluate(term, T), material.sellmeier_terms)
+    return _evaluate_sellmeier_polynomials(
+        _SILICA_SELLMEIER_B_COEFFS,
+        _SILICA_SELLMEIER_C_COEFFS,
+        T
+    )
 end
 
-refractive_index(::ValueOnly, material::SiO2, λ, T_K) = 
-        sellmeier_index_from_coefficients(sellmeier_coefficients(material, T_K), λ)
-refractive_index(::WithDerivative, material::SiO2, λ, T_K) = 
-        sellmeier_index_from_coefficients_dω(sellmeier_coefficients(material, T_K), λ)
+function refractive_index(::ValueOnly, material::SiO2, λ, T_K)
+    return sellmeier_index_from_coefficients(_sellmeier_coefficients(material, T_K), λ)
+end
+
+function refractive_index(::WithDerivative, material::SiO2, λ, T_K)
+    return sellmeier_index_from_coefficients_dω(_sellmeier_coefficients(material, T_K), λ)
+end
 
 #################################################
 #
