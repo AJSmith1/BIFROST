@@ -107,18 +107,16 @@ end
 # ----------------------------
 # Thermal (`:T_K`) interpretation — fiber-only
 # ----------------------------
-#
-# `:T_K` is a foreign meta to the geometry layer (it cannot be resolved without a
-# material). The fiber is its sole interpreter, and `:T_K` plays a dual role: it
-# sets the segment's optical temperature `T_ref_K + ΔT` (consumed by the
-# birefringence generators) *and* an isotropic thermal expansion of its length.
-# At build time the fiber converts `:T_K` (a temperature excursion ΔT) into a
-# length scaling `τ = 1 + α_lin·ΔT` using `α_lin = cte(cladding_material,
-# T_ref_K)`, bakes that into the affected segments, and lets the geometry
-# `build(...; perturb=true)` apply any remaining field-level MCM. Crucially it
-# *leaves `:T_K` on the segment* (the geometry layer carries foreign meta inertly),
-# so `temperature(f, s)` can recover ΔT on demand at query time — no thermal state
-# is stored on `Fiber`. This is the *only* place `:T_K` is named.
+# :T_K is a foreign meta to the geometry layer because it cannot be resolved 
+# without a material; Fiber is its sole interpreter. It specifies a temperature 
+#excursion ΔT from T_ref_K. At build time, the fiber converts :T_K into a length 
+#scaling τ = 1 + α_lin·ΔT using α_lin = cte(cladding_material, T_ref_K), bakes 
+#that into the affected segments, and lets the geometry build(...; perturb=true) 
+#apply any remaining field-level MCM. Crucially it leaves :T_K on the segment 
+#(the geometry layer carries foreign meta inertly), so temperature(f, s) can 
+#recover ΔT on demand at query time — no thermal state is stored on Fiber. 
+#This allows for other  properties of the fiber to also be determined by 
+#temperature (eg birefringence).
 
 # (below) ΔT for a segment from its additive `:T_K` meta, or `nothing` when it carries
 # none (the additive combine of 0.0 returns the unchanged baseline).
