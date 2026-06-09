@@ -135,11 +135,11 @@ _seal_delta_T(sub::Subpath) =
 # inertly and the fiber is its sole interpreter. It is an *absolute* axial tension
 # in Newtons and plays a dual role: it sets the segment's optical tension response
 # (consumed by `tension_generator_K`) *and* an axial elongation of its length. At
-# build time the fiber converts `F` into a length scaling `(1 + ε)` with the axial
-# strain `ε = F / (π·r_clad²·E)` (the same denominator as `axial_tension_dω`),
-# using `E = youngs_modulus(cladding_material, T_ref_K)` and `r_clad =
-# cladding_radius(cross_section)` — the cladding convention, for consistency with
-# the `:T_K` length-scaling path. Like `:T_K` it is *left on the segment*, so
+# build time the fiber converts `F` into a length scaling `(1 + ε)` via
+# `_tension_strain`, using `E = youngs_modulus(cladding_material, T_ref_K)` and
+# `r_clad = cladding_radius(cross_section)` — the cladding convention, for
+# consistency with the `:T_K` length-scaling path. Like `:T_K` it is *left on the
+# segment*, so
 # `tension(f, s)` recovers it on demand. This is the only place `:tension` is named.
 
 # Axial tension (N) for a segment from its additive `:tension` meta, or `nothing`
