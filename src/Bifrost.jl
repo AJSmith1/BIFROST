@@ -27,7 +27,7 @@ end
 module MaterialProperties
     using LinearAlgebra
     using Printf
-    include("material-properties.jl")
+    include("material/material-properties.jl")
 
     include("material/silica.jl")
     include("material/germania.jl")

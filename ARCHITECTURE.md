@@ -11,8 +11,9 @@ This is a high-level schematic. Do not update it to reflect every file.
 ├── Project.toml
 ├── Manifest.toml
 ├── src                              [8]
-│   ├── material-properties.jl       [9]
 │   ├── path-integral.jl             [11]
+│   ├── material                     [9]
+|   ├── material/nonlinear           [9b]
 │   ├── geometry                     [10]
 │   ├── fiber                        [12, 13, 14]
 │   └── nonlinear                    [16]
@@ -29,6 +30,7 @@ This is a high-level schematic. Do not update it to reflect every file.
 - [7] Documenter.jl documentation, research references, and source material.
 - [8] Active Julia source tree and solver architecture.
 - [9] Standalone material models and refractive-index behavior.
+- [9b] Nonlinear material properties. 
 - [10] Standalone path construction and differential geometry.
 - [11] Generic adaptive propagation for callable Jones generators.
 - [12] Cross-sectional fiber optics and local birefringence responses.

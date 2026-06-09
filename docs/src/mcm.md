@@ -3,7 +3,7 @@
 Several files are written to lift through
 `MonteCarloMeasurements.Particles`:
 
-- `src/material-properties.jl` and `materials/` files
+- `src/material/material-properties.jl` and `materials/` files
 - `src/fiber/fiber-cross-section.jl` and `fiber-cross-sections/` files
 - `src/geometry/path-geometry.jl`
 - `src/fiber/fiber-path.jl`
