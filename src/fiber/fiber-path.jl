@@ -155,8 +155,8 @@ _seal_tension(sub::Subpath) =
 # absolute tension `F`. Shares the denominator of `axial_tension_dω`.
 _tension_strain(F, r_clad, E) = F / (π * r_clad^2 * E)
 
-# The terminal connector supports only `MCMadd(:T_K, …)` (thermal expansion,
-# issue #33) and `MCMadd(:tension, …)` (axial elongation). Any other MCMadd/MCMmul
+# The terminal connector supports only `MCMadd(:T_K, …)` (thermal expansion)
+# and `MCMadd(:tension, …)` (axial elongation). Any other MCMadd/MCMmul
 # — field-level perturbation, or a multiplicative `:T_K`/`:tension` — has no effect
 # on a solved connector, so reject it loudly rather than silently ignore. (This
 # lives in the fiber: distinguishing the supported additive meta from field MCM
@@ -167,7 +167,7 @@ function _validate_seal_meta(sub::Subpath)
               (m isa MCMadd && m.symbol !== :T_K && m.symbol !== :tension)
         bad && throw(ArgumentError(
             "jumpto!: the terminal connector supports only MCMadd(:T_K, …) thermal " *
-            "or MCMadd(:tension, …) elongation meta (issues #33, #74); got " *
+            "or MCMadd(:tension, …) elongation meta; got " *
             "$(nameof(typeof(m)))(:$(m.symbol)). Field-level MCMadd/MCMmul is not " *
             "applied to a solved connector."))
     end
@@ -179,8 +179,8 @@ end
 # (1 + α_lin·ΔT)·(1 + ε)` (thermal expansion and tension elongation compose
 # multiplicatively) while *retaining* the meta (the segment keeps `:T_K`/`:tension`
 # as records for `temperature(f, s)` and `tension(f, s)`). If the terminal
-# `jumpto!` connector carries either, also compute its target arc length (issue
-# #33 for `:T_K`, #74 for `:tension`): the nominal connector length L0 scaled by
+# `jumpto!` connector carries either, also compute its target arc length:
+# the nominal connector length L0 scaled by
 # the same combined factor, re-solved to the fixed endpoint by `build`. The
 # material `cte`/`youngs_modulus` lookups are gated behind the presence of the
 # corresponding meta so a plain fiber on a cladding with neither defined still
@@ -276,11 +276,11 @@ Thermal `:T_K` annotations are resolved here using
 `α_lin = cte(cross_section.cladding_material, T_ref_K)` — each thermal segment's
 length-dimensioned fields are scaled by `1 + α_lin·ΔT`. Field-level `MCMadd`/`MCMmul`
 are then applied by the geometry build. If the terminal `jumpto!` connector carries
-`:T_K`, it thermally expands too (issue #33): its arc length scales by `τ_seal` while
+`:T_K`, it thermally expands too: its arc length scales by `τ_seal` while
 still landing at the fixed `jumpto_point`. The geometry is built exactly once.
 
 Per-segment axial tension `:tension` (absolute Newtons, e.g.
-`MCMadd(:tension, 0.5)`) is interpreted here too (issue #74) and plays a dual
+`MCMadd(:tension, 0.5)`) is interpreted here too and plays a dual
 role exactly like `:T_K`: it elongates the segment by `(1 + ε)` with the axial
 strain `ε = F / (π·r_clad²·E)` (`E = youngs_modulus(cladding_material, T_ref_K)`,
 `r_clad = cladding_radius(cross_section)`) *and* it sets the segment's axial-tension
@@ -467,7 +467,7 @@ function ellipticity_generator_Kω(f::Fiber, s::Real, λ_m::Real)
     return linear_birefringence_generator(Δβω, c2φ, s2φ)
 end
 
-# Axial-tension photoelastic birefringence (issue #74). Like bending, it is a
+# Axial-tension photoelastic birefringence. Like bending, it is a
 # *linear* birefringence on the bend eigen-axis and vanishes on a straight segment
 # (the response ∝ 1/R), so a tensioned but unbent segment contributes nothing. Its
 # own additive generator term, separate from bending. Temperature enters through

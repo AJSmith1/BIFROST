@@ -1204,7 +1204,7 @@ is carried through untouched.
 `jumpto_target_length`, when given, constrains the terminal `jumpto!` connector's
 arc length to that value while still landing at the fixed `jumpto_point` (a plain
 length, layer-agnostic). It is supplied by a consuming layer — the fiber uses it
-to thermally expand the connector (issue #33). It combines with
+to thermally expand the connector. It combines with
 `jumpto_min_bend_radius`: when a target length is set the solver picks the handle
 scale by arc length and validates peak curvature against the radius limit.
 
@@ -1296,7 +1296,7 @@ function build(sub::Subpath; perturb::Bool = false, jumpto_target_length = nothi
             zeros(eltype(K0_local), 3) :
             frame' * collect(sub.jumpto_incoming_curvature)
         # The caller may constrain the terminal connector's arc length (the fiber
-        # supplies this to thermally expand the connector — issue #33).
+        # supplies this to thermally expand the connector).
         # `min_bend_radius` is always honored: with a target set the
         # solver picks the handle by arc length and validates the radius limit
         # post-hoc; with no target it drives the handle selection.

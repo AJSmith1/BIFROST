@@ -4,7 +4,7 @@ using Bifrost
 using Bifrost.PathGeometry: _qc_nominalize
 using MonteCarloMeasurements
 
-# Fiber-layer per-segment tension (`:tension`, issue #74). Like `:T_K`, an
+# Fiber-layer per-segment tension (`:tension`). Like `:T_K`, an
 # absolute axial tension in Newtons plays a dual role: it elongates the segment
 # by (1 + ε) with ε = F/(π·r_clad²·E) using the cladding stiffness, and it sets
 # the segment's axial-tension photoelastic birefringence (a linear birefringence
@@ -175,7 +175,7 @@ end
 # -----------------------------------------------------------------------
 
 @testset "Fiber :tension — jumpto! seal accepts :tension; elongates connector" begin
-    # T-GUARDRAIL + #74: a :tension on the jumpto! seal scales the terminal
+    # T-GUARDRAIL: a :tension on the jumpto! seal scales the terminal
     # connector's arc length by (1 + ε), still landing at the fixed jumpto_point.
     F = 5.0
     P = (0.1, 0.0, 0.5)

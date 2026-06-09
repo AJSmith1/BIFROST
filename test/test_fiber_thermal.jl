@@ -189,12 +189,12 @@ end
 end
 
 # -----------------------------------------------------------------------
-# Issue #33 — terminal jumpto! connector thermal expansion
+# Terminal jumpto! connector thermal expansion
 # -----------------------------------------------------------------------
 
 @testset "Fiber :T_K — jumpto! seal expands the connector by τ, endpoint fixed" begin
     # T-PHYSICS: a :T_K on the jumpto! seal scales the terminal connector's arc
-    # length by τ (issue #33), still landing at the fixed jumpto_point.
+    # length by τ, still landing at the fixed jumpto_point.
     ΔT = 100.0
     P  = (0.1, 0.0, 0.5)
     sb = SubpathBuilder(); start!(sb)
@@ -214,7 +214,7 @@ end
     # T-GUARDRAIL: Fiber([sb1, sb2]) must freeze builders to Subpaths and reuse
     # the Vector{Subpath} thermal path, NOT build([sb1, sb2]) first (which would
     # bypass per-subpath jumpto_target_length). A terminal jumpto! :T_K on the
-    # last subpath proves the connector expansion (#33) still applies.
+    # last subpath proves the connector expansion still applies.
     ΔT = 100.0
     P1 = (0.0, 0.0, 0.5)
     P2 = (0.1, 0.0, 1.0)
@@ -259,7 +259,7 @@ end
 # -----------------------------------------------------------------------
 
 @testset "Fiber — field MCM on a jumpto! seal errors; :T_K / Nickname are fine" begin
-    # T-GUARDRAIL: the terminal connector supports only MCMadd(:T_K, …) (#33).
+    # T-GUARDRAIL: the terminal connector supports only MCMadd(:T_K, …).
     # A field-level MCMadd/MCMmul (or a multiplicative :T_K) on the seal is
     # rejected at Fiber construction rather than silently ignored.
     mk(meta) = begin
@@ -298,7 +298,7 @@ end
     @test κ_peak <= 1 / 0.02 + 1e-6
 end
 
-@testset "Fiber — jumpto! min_bend_radius honored under :T_K (#33)" begin
+@testset "Fiber — jumpto! min_bend_radius honored under :T_K" begin
     # T-GUARDRAIL: a seal carrying :T_K thermally expands the connector
     # (target-length solve) yet still respects a feasible min_bend_radius — the
     # solver validates peak curvature against the limit post-hoc.

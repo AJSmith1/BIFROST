@@ -846,9 +846,9 @@ end
 function demo_modify_jumpto_anchor_thermal_2d(;
     output_dir::AbstractString = joinpath(@__DIR__, "..", "..", "output"),
 )
-    desc_short = "Meta + :T_K + JumpTo carrying :T_K: connector thermally expands (issue #33)"
+    desc_short = "Meta + :T_K + JumpTo carrying :T_K: connector thermally expands"
     desc_long  = "Lead-in straight with `:T_K`, sealed by a transverse " *
-                 "JumpTo that also carries `:T_K`. Per issue #33 the terminal " *
+                 "JumpTo that also carries `:T_K`. The terminal " *
                  "connector thermally expands (its arc length scales by τ) " *
                  "while still landing at the fixed destination, so the whole " *
                  "Subpath grows by τ and the extra length shows up as " *

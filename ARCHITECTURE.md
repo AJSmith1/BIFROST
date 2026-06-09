@@ -122,8 +122,8 @@ The fiber-specific layers combine those pieces:
      field-level `MCMadd`/`MCMmul`. (`modify` has been removed.)
    - A `jumpto!` seal may itself carry `:T_K`: the terminal connector then
      thermally expands — its arc length scales by τ while still landing at the
-     fixed `jumpto_point` — by passing `build(...; jumpto_target_length=τ·L0)`
-     (issue #33). `min_bend_radius` is still honored (validated post-hoc when a
+     fixed `jumpto_point` — by passing `build(...; jumpto_target_length=τ·L0)`.
+     `min_bend_radius` is still honored (validated post-hoc when a
      target length is set).
    - Keeps operating wavelength as a per-query argument rather than `Fiber`
      state.
