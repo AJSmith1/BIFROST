@@ -192,8 +192,7 @@ function _resolve_thermal_and_tension(sub::Subpath, cross_section::FiberCrossSec
     interior_TK = any(seg -> _segment_delta_T(seg) !== nothing, sub.segments)
     interior_F  = any(seg -> _segment_tension(seg) !== nothing, sub.segments)
 
-    # Skip all material lookups (and any meta work) when nothing is thermal or
-    # tensioned, so a plain fiber on a cladding with no CTE/stiffness still builds.
+    # Skip all material lookups (and any meta work) when nothing is thermal or tensioned. 
     any_thermal = interior_TK || seal_ΔT !== nothing
     any_tension = interior_F || seal_F !== nothing
     (any_thermal || any_tension) || return (sub, nothing)
@@ -226,11 +225,16 @@ function _resolve_thermal_and_tension(sub::Subpath, cross_section::FiberCrossSec
     # for jumpto the terminal connector target = τ_seal · L0
     # Here,  L0 is the nominal connector length (solved without :T_K/:tension). 
     # `build` re-solves to the fixed `jumpto_point` with this arc length.
+    # When the seal expands, the terminal connector elongates by `seal_factor` (its
+    # length is re-solved to `jumpto_target_length`), so its twist rate divides by
+    # the same factor to conserve connector turns — mirroring the interior segments.
+    seal_expands = seal_ΔT !== nothing || seal_F !== nothing
+    seal_factor = seal_expands ? _τ(seal_ΔT, seal_F) : 1
     jumpto_target_length = nothing
-    if seal_ΔT !== nothing || seal_F !== nothing
+    if seal_expands
         L0 = Float64(_qc_nominalize(
             arc_length(build(sub; perturb = false).jumpto_quintic_connector)))
-        jumpto_target_length = _τ(seal_ΔT, seal_F) * L0
+        jumpto_target_length = seal_factor * L0
     end
 
     resolved = Subpath(
@@ -238,7 +242,7 @@ function _resolve_thermal_and_tension(sub::Subpath, cross_section::FiberCrossSec
         sub.start_outgoing_curvature, new_segments, sub.jumpto_point,
         sub.jumpto_incoming_tangent, sub.jumpto_incoming_curvature,
         sub.jumpto_min_bend_radius, sub.jumpto_meta,
-        sub.jumpto_twist,
+        _scale_inverse_twist_rate(sub.jumpto_twist, seal_factor),
         sub.jumpto_natural, sub.jumpto_natural_extra,
         sub.spin_rate, sub._spin_phi_at_s0,
     )

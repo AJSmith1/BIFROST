@@ -121,6 +121,23 @@ end
     @test _fn_seg_len(f, 1) ≈ _fn_seg_len(f0, 1) rtol = 1e-12
 end
 
+@testset "Fiber :tension — divides twist rate by (1 + ε); conserves turns" begin
+    # T-PHYSICS: tension elongation scales arc length by (1 + ε), so mechanical
+    # twist (an inverse-length rate) divides by (1 + ε) and total turns ∫τ_m ds are
+    # conserved — the same inverse-length scaling as :T_K.
+    F   = 3.0
+    τm0 = 5.0
+    f  = _fn_fiber(sb -> straight!(sb; length = 1.0, twist = τm0,
+                                   meta = [MCMadd(:tension, F)]))
+    f0 = _fn_fiber(sb -> straight!(sb; length = 1.0, twist = τm0))
+    L  = Float64(_qc_nominalize(arc_length(f.path)))
+    L0 = Float64(_qc_nominalize(arc_length(f0.path)))
+
+    @test twist_rate(f.path, 0.5 * L) ≈ τm0 / (1 + _fn_strain(F)) rtol = 1e-12
+    # Total twist conserved: Φ unchanged from the untensioned build.
+    @test twist_phase(f.path, L) ≈ twist_phase(f0.path, L0) rtol = 1e-9
+end
+
 @testset "Fiber :tension — composes multiplicatively with :T_K" begin
     # T-PHYSICS: a segment carrying both scales by (1 + α_lin·ΔT)·(1 + ε).
     F  = 2.0

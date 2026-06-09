@@ -353,3 +353,81 @@ end
     @test Ωb ≈ τ * Lb atol = 1e-9
     @test Ωs ≈ α * Ωb rtol = 1e-9
 end
+
+# -----------------------------------------------------------------------
+# Mechanical twist under thermal expansion (inverse-length scaling)
+# -----------------------------------------------------------------------
+
+@testset "Fiber :T_K — divides twist rate by α; conserves total turns" begin
+    # T-PHYSICS: mechanical twist τ_m is an inverse-length rate (rad/m). Thermal
+    # expansion scales arc length by α, so the *rate* divides by α and the total
+    # accumulated twist Φ = ∫τ_m ds is conserved (the frozen-in turns just stretch
+    # over a longer length — no turns are added). Contrast material spinning above,
+    # whose rate is preserved and whose total therefore scales with length.
+    α   = 1.05
+    τm0 = 3.0
+    spec = sb -> straight!(sb; length = 2.0, twist = τm0, meta = _ft_mcm(α))
+
+    base = _ft_baseline(spec)
+    scal = _ft_scaled(spec)
+
+    Lb = Float64(_qc_nominalize(arc_length(base)))
+    Ls = Float64(_qc_nominalize(arc_length(scal)))
+    @test Ls ≈ α * Lb atol = 1e-9
+
+    # Rate divides by α.
+    @test twist_rate(base, 0.5 * Lb) ≈ τm0
+    @test twist_rate(scal, 0.5 * Ls) ≈ τm0 / α rtol = 1e-12
+
+    # Total twist Φ = ∫τ_m ds is conserved across the expansion.
+    Φb = twist_phase(base, Lb)
+    Φs = twist_phase(scal, Ls)
+    @test Φb ≈ τm0 * Lb atol = 1e-9
+    @test Φs ≈ Φb rtol = 1e-9
+end
+
+@testset "Fiber :T_K — function-valued twist conserves turns (reparametrized)" begin
+    # T-PHYSICS: a function rate τ_m(s_local) is reparametrized onto the stretched
+    # local arc length, g(s) = τ_m(s/α)/α, so ∫g over the elongated segment equals
+    # ∫τ_m over the original — turns conserved for non-constant twist too.
+    α    = 1.1
+    rate = s -> 1.0 + s          # rad/m, linear in segment-local arc length
+    spec = sb -> straight!(sb; length = 2.0, twist = rate, meta = _ft_mcm(α))
+
+    base = _ft_baseline(spec)
+    scal = _ft_scaled(spec)
+    Lb = Float64(_qc_nominalize(arc_length(base)))
+    Ls = Float64(_qc_nominalize(arc_length(scal)))
+
+    @test twist_phase(base, Lb) ≈ twist_phase(scal, Ls) rtol = 1e-9
+end
+
+@testset "Fiber — non-thermal fiber leaves twist rate untouched" begin
+    # T-GUARDRAIL: with no :T_K/:tension meta the scaling factor is never applied,
+    # so the twist rate is bit-for-bit the authored value.
+    τm0 = 2.5
+    f = Fiber(_ft_subpath(sb -> straight!(sb; length = 1.0, twist = τm0));
+              cross_section = _FT_XS, T_ref_K = _FT_T_REF)
+    L = Float64(_qc_nominalize(arc_length(f.path)))
+    @test twist_rate(f.path, 0.5 * L) == τm0
+    @test twist_phase(f.path, L) ≈ τm0 * L
+end
+
+@testset "Fiber :T_K — twist rate divides under Particles ΔT" begin
+    # MCM: a Particles-valued ΔT lifts the twist rate to Particles, dividing by the
+    # Particles factor α = 1 + α_lin·ΔT (no ::Real slot, no coercion).
+    MonteCarloMeasurements.unsafe_comparisons(true)
+    try
+        τm0 = 4.0
+        ΔT  = 0.0 ± (0.01 / _FT_ALPHA)        # α = 1 ± 0.01
+        f = Fiber(_ft_subpath(sb -> straight!(sb; length = 1.0, twist = τm0,
+                                              meta = [MCMadd(:T_K, ΔT)]));
+                  cross_section = _FT_XS, T_ref_K = _FT_T_REF)
+        L = Float64(_qc_nominalize(arc_length(f.path)))
+        r = twist_rate(f.path, 0.5 * L)
+        @test r isa Particles
+        @test pmean(r) ≈ τm0 rtol = 1e-3      # 1/α with zero-mean α centers on τm0
+    finally
+        MonteCarloMeasurements.unsafe_comparisons(false)
+    end
+end
