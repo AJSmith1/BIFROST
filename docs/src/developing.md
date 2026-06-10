@@ -147,7 +147,10 @@ is the contract for keeping it that way.
 
 `Particles` may arrive on these inputs:
 
-- temperature `T_K` and the thermal `:T_K` segment annotation,
+- temperature: the user sets it through the thermal `:T_K` segment annotation (and
+  the baseline `T_ref_K`); `temperature(f, s)` resolves these to the internal `T_K`
+  slot that the cross-section and material layers consume, so that slot must lift too,
+
 - bend, twist, tension, and axis-ratio properties,
 - segment shrinkage and field-level `MCMadd`/`MCMmul` perturbations,
 - the per-entry eltype of the Jones matrix `J` and sensitivity `G`.
