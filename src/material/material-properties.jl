@@ -141,8 +141,7 @@ and _evaluate_sellmeier_constants(coeffs, x) utilities; see silica.jl and german
 examples of their use. 
 
 Implemented materials must lift `MonteCarloMeasurements.Particles`; routing spectral
-evaluation through the Sellmeier helpers here provides that automatically. MCM contract:
-see the "Developing" page of the docs (docs/src/developing.md).
+evaluation through the Sellmeier helpers here provides that automatically.
 """
 
 function _evaluate_sellmeier_polynomials(B_coeffs, C_coeffs, x)

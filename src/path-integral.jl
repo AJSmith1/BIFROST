@@ -8,8 +8,7 @@
 # above this layer in `fiber-path-plot.jl`.
 #
 # The implementation assumes lossless SU(2)-style Jones dynamics and phase-insensitive
-# error control. MCM contract: see the "Developing" page of the docs
-# (docs/src/developing.md).
+# error control.
 
 # Fiber and the generator API come from the FiberPath submodule, in scope via
 # the PathIntegral submodule in Bifrost.jl.
@@ -24,8 +23,7 @@
 #
 # The adaptive step controller makes one decision per step for the whole ensemble;
 # `scalar_reduce` is the single switch point between the conservative `pmaximum`
-# reduction and a cheaper `pmean` compromise. MCM contract: see the "Developing"
-# page of the docs (docs/src/developing.md).
+# reduction and a cheaper `pmean` compromise.
 
 """
     scalar_reduce(x)
