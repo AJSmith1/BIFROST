@@ -3,7 +3,7 @@
 This page is the source of authority for contributor workflow, extension recipes, and
 the Monte Carlo Measurements (MCM) compatibility contract. Repository-root files such as
 `AGENTS.md` and `ARCHITECTURE.md` summarize the hard invariants for agent tooling and
-cross-reference this page; when guidance here and a summary disagree, fix the summary.
+cross-reference this page.
 
 ## Development setup
 
@@ -54,42 +54,12 @@ The rendered site is written to `docs/build/` (open `docs/build/index.html`).
 
 ## Extending Bifrost
 
-The package is layered — material ≤ cross section ≤ fiber, geometry ≤ fiber — with the
+The package is layered with strictly hierarchical dependencies - material ≤ cross section ≤ fiber, geometry ≤ fiber — with the
 propagation layer consuming callable generators. `ARCHITECTURE.md` (Layered Design)
 maps the layers to files. Each extension point below names the layer it belongs to.
 Whatever you add, write code that satisfies the
 [MCM compatibility](@ref mcm-compatibility) contract from the start: retrofitting
 `Particles` support is much harder than designing for it.
-
-### Adding a path segment
-
-Geometry layer (`src/geometry/`).
-
-1. Implement the `AbstractPathSegment` local-geometry interface in
-   `src/geometry/path-geometry.jl`. The docstring of `AbstractPathSegment` lists the
-   required methods (`arc_length`, `curvature`, `position_local`, frame queries, …);
-   each concrete segment describes itself in a local frame starting at the origin with
-   tangent along `+z`, and the `build` placement loop chains segments globally.
-2. Declare the segment's length-dimensioned fields via `_length_fields` in
-   `src/geometry/path-geometry-perturb.jl` so isotropic scaling (thermal expansion,
-   tension) is well-defined. The fallback method errors loudly, so omitting this is
-   caught the first time the segment is perturbed.
-3. Keep the field element type parametric (`T<:Real`), not hard-coded `Float64`, so an
-   MCM-perturbed field lifts the whole segment to `Particles`.
-4. Add an authoring call (`straight!`-style) on `SubpathBuilder` if the segment is
-   user-facing.
-
-### Adding segment metadata
-
-Geometry layer vocabulary, consumer-defined meaning.
-
-1. Define a new subtype of `AbstractMeta` in `src/geometry/path-geometry-meta.jl`. The
-   existing vocabulary is `Nickname`, `MCMadd`, and `MCMmul`.
-2. Keep all interpretation in the consuming layer. The geometry layer stores meta
-   verbatim and acts only on `Nickname` and field-level `MCMadd`/`MCMmul`; it must carry
-   anything else blindly — never naming foreign meta, never erroring on it. For example,
-   the fiber assembly (`src/fiber/fiber-path.jl`) is the sole interpreter of the thermal
-   `:T_K` and `:tension` annotations.
 
 ### Adding a birefringence source
 
@@ -162,11 +132,8 @@ The files on those paths — all of `src/material/`, `src/fiber-cross-section/`,
 ### The rules
 
 1. **No annotations or coercions that exclude `Particles`.** Leave uncertain-input
-   slots unannotated where possible. `Particles <: Real` (but not `<: AbstractFloat`),
-   so `::Real` is admissible where dispatch needs it (e.g. `_integrate_rate` in
-   `src/geometry/path-geometry.jl`), while `::Float64` or `::AbstractFloat` silently
-   excludes the ensemble. Never coerce with `Float64(·)` on a path that may carry
-   `Particles`: promotion does the right thing, coercion destroys the ensemble.
+   slots unannotated where possible. This is because `Particles <: Real` (but not `<: AbstractFloat`). Use of  `::Float64` or `::AbstractFloat` silently
+   excludes the ensemble and degrade performance. Never coerce with `Float64(·)` on a path that may carry  `Particles`: promotion does the right thing, coercion destroys the ensemble.
 2. **No per-particle branching.** A conditional on a `Particles` value is an error
    (which branch would the ensemble take?). Either write branch-free code (`sign`,
    `flipsign`, `clamp`, elementwise arithmetic), or reduce to a representative scalar
@@ -176,8 +143,9 @@ The files on those paths — all of `src/material/`, `src/fiber-cross-section/`,
    established patterns. Loop bounds and quadrature limits must be deterministic
    `Float64`.
 3. **No generic dense linear algebra on `Particles` matrices.** `LinearAlgebra.exp`
-   (Padé with pivoting), `opnorm`, and `eigvals` hit code paths that do not lift. Use
-   the closed forms instead: `exp_jones_generator` and
+   (Padé with pivoting), `opnorm`, and `eigvals` hit code paths that do not lift. 
+   Bifrost.jl implements private variants that work with MCM.
+   For example `exp_jones_generator` and
    `exp_block_upper_triangular_2x2` (a closed-form Fréchet derivative of the 2×2
    exponential) for propagation, and `output_dgd_2x2` for DGD extraction
    (`output_dgd` uses `eigvals` and is Float64-only).
@@ -195,21 +163,6 @@ size. That is conservative; a `pmean`-based reduction is the documented performa
 compromise if step counts become too large under tight tolerances. `scalar_reduce` is
 the single switch point for that change.
 
-### The meta vocabulary
-
-Per-segment uncertainty and annotations live in each segment's `meta` vector
-(`src/geometry/path-geometry-meta.jl`):
-
-- `Nickname(label)` labels a segment for visual diagnostics,
-- `MCMadd(symbol, distribution)` applies an additive perturbation to the named field,
-- `MCMmul(symbol, distribution)` applies a multiplicative perturbation.
-
-Field-level `MCMadd`/`MCMmul` (whose symbol names one of the segment's own fields) are
-applied by the geometry build (`build(...; perturb=true)`). Interpreted annotations are
-resolved by the fiber assembly (`src/fiber/fiber-path.jl`): `:T_K` becomes isotropic
-thermal length scaling via the cladding-material CTE at the fiber reference
-temperature, and `:tension` becomes elastic elongation.
-
 ### Testing MCM changes
 
 `test/test_mcm_compatability.jl` is the primary MCM suite; thermal, tension, and
@@ -225,8 +178,3 @@ Conventions:
   deduplicated") reduce via `pmean` rather than failing;
 - compare `pmean` of a `Particles` result against the nominal `Float64` baseline.
 
-## What requires user authorization
-
-Some changes (solver algorithm, source interface contracts, legacy Python files, …)
-require explicit user authorization first; the authoritative list is in `AGENTS.md`
-(What Requires User Authorization).
