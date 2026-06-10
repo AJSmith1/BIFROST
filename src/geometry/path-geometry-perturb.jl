@@ -18,6 +18,8 @@ material properties.
 Which fields are length-dimensioned is declared per segment type by
 [`_length_fields`](@ref); a new `AbstractPathSegment` that omits it errors loudly
 when perturbed, so the extension point is self-documenting.
+
+MCM contract: see the "Developing" page of the docs (docs/src/developing.md).
 """
 
 # Segment types (StraightSegment, …, JumpBy), the meta vocabulary (MCMcombine,

@@ -140,8 +140,9 @@ fraction of a dopant. We provide the _evaluate_sellmeier_polynomials(B_coeffs, C
 and _evaluate_sellmeier_constants(coeffs, x) utilities; see silica.jl and germania.jl for
 examples of their use. 
 
-Note also that any implemented material must ensure compatibility with `Particles` to allow
-Monte Carlo calculation. This happens naturally through the Sellmeier structure included here.
+Implemented materials must lift `MonteCarloMeasurements.Particles`; routing spectral
+evaluation through the Sellmeier helpers here provides that automatically. MCM contract:
+see the "Developing" page of the docs (docs/src/developing.md).
 """
 
 function _evaluate_sellmeier_polynomials(B_coeffs, C_coeffs, x)

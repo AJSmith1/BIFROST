@@ -20,6 +20,7 @@ uses `AbstractPathSegment` and `AbstractMeta` from there.
 # ---------------------------------------------------------------------------
 # Nominalization (deterministic branching under MCM)
 # ---------------------------------------------------------------------------
+# MCM contract: see the "Developing" page of the docs (docs/src/developing.md).
 
 # `Particles{T,N} <: Real` (but not <: AbstractFloat). Dispatch the identity
 # branch on the concrete already-nominal types so Particles falls through to
