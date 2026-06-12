@@ -14,6 +14,14 @@
 # This file expects to be `include`d after demo2.jl is in scope (it
 # reuses `_sample_segment_xyz` and the path-builder API).
 
+# Direct library dependencies so this file loads standalone regardless of the
+# index's include order (it no longer free-rides on demo2/demo1's `using`).
+using Bifrost
+using MonteCarloMeasurements
+using Distributions
+
+# The scene renderers and `_sample_segment_xyz` live in demo1.jl (reached via
+# demo2.jl), not in Bifrost — pull them in if not already loaded.
 if !isdefined(Main, :_sample_segment_xyz)
     include(joinpath(@__DIR__, "demo2.jl"))
 end
@@ -76,15 +84,10 @@ const _MCM_DEMO_HELIX1_TURNS = 10001.892069208387
 # Build the 5-segment fiber spec.  `ΔT_K` is the temperature offset applied
 # to the first helix via MCMadd(:T_K, ΔT_K); pass 0.0 for the baseline.
 function _mcm_demo_fiber(ΔT_K)
-    spec = SubpathBuilder()
-    start!(spec)
-    # Sinusoidal spinning: amplitude 1 rad/m, period 10 m, starts here and runs
-    # to end of fiber (no subsequent Spinning annotation resets it).
-    straight!(spec; length = 5.0,
-              meta = AbstractMeta[
-                  Nickname("lead-in"),
-                  Spinning(; rate = s -> sin(2π * s / 100.0)),
-              ])
+    # Sinusoidal spin over the whole Subpath: amplitude 1 rad/m, period 100 m,
+    # set once at the Subpath start and covering every segment to the fiber end.
+    spec = PathSpecBuilder(; spin_rate = s -> sin(2π * s / 100.0))
+    straight!(spec; length = 5.0)
     helix!(spec; radius = 0.025, pitch = 0.05, turns = _MCM_DEMO_HELIX1_TURNS,
            axis_angle = 0.0,
            meta = AbstractMeta[Nickname("temperature-sensitive helix"),

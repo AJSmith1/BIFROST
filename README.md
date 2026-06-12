@@ -8,7 +8,7 @@ simulated.
 The active implementation is a Julia refactor of the original Python
 polarization model. Legacy Python code is retained under `test/legacy-python/`
 as physics reference material and should not be edited during routine Julia
-work.
+work.  
 
 The major architectural change is that the optical fiber is not represented as
 a pre-sliced list of Jones matrices. Instead, the code builds a continuous
@@ -22,6 +22,8 @@ local Jones generator:
 Propagation uses an adaptive exponential-midpoint, Lie-group style integrator.
 The adaptive controller never steps across path breakpoints, and its error
 metric is insensitive to physically irrelevant global Jones phase.
+
+📖 **[Documentation](https://brittonlab.github.io/BIFROST/stable/)**
 
 ## Installation
 
@@ -93,13 +95,9 @@ artifacts under `output/`.
 ## Documentation
 
 Full documentation is built with [Documenter.jl](https://documenter.juliadocs.org)
-from the `docs/` tree. 
+from the `docs/` tree and published at
+[brittonlab.github.io/BIFROST](https://brittonlab.github.io/BIFROST/stable/).
 
-Build it locally:
-
-```bash
-julia --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
-julia --project=docs docs/make.jl
-```
-
-then open `docs/build/index.html`.
+Contributor setup, tests, documentation builds, and extension/MCM guidance live on the
+site's [Developing](https://brittonlab.github.io/BIFROST/stable/developing/) page
+(source: `docs/src/developing.md`).

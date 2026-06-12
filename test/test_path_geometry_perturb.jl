@@ -10,14 +10,15 @@ using MonteCarloMeasurements
 
 # Build a sealed Subpath from a do-block that authors interior segments. Seals
 # at the natural exit (via seal!) if no jumpto! was called.
-function _subpath(f::Function)
-    sb = SubpathBuilder(); start!(sb)
+function _subpath(f::Function; spin_rate = nothing)
+    sb = SubpathBuilder(); start!(sb; spin_rate = spin_rate)
     f(sb)
     isnothing(sb.jumpto_point) && seal!(sb)
     return Subpath(sb)
 end
 
-_perturb(f::Function) = build(_subpath(f); perturb = true)
+_perturb(f::Function; spin_rate = nothing) =
+    build(_subpath(f; spin_rate = spin_rate); perturb = true)
 
 # -----------------------------------------------------------------------
 # Field-level MCM on a segment's own fields
@@ -86,7 +87,7 @@ end
 end
 
 # -----------------------------------------------------------------------
-# Connector / spinning interactions under field-MCM
+# Connector / spin interactions under field-MCM
 # -----------------------------------------------------------------------
 
 @testset "perturb — upstream bend change recomputes connector K0" begin
@@ -102,19 +103,18 @@ end
     @test curvature(connector, 0.0) ≈ 0.5 atol = 1e-12
 end
 
-@testset "perturb — Spinning anchors tolerate MCM-valued modified length" begin
+@testset "perturb — spin tolerates MCM-valued modified length" begin
     # T-GUARDRAIL
     MonteCarloMeasurements.unsafe_comparisons(true)
     try
-        path = _perturb() do sb
-            straight!(sb; length = 1.0,
-                      meta = [Spinning(; rate = 2.0), MCMadd(:length, 0.0 ± 0.01)])
+        path = _perturb(; spin_rate = 2.0) do sb
+            straight!(sb; length = 1.0, meta = [MCMadd(:length, 0.0 ± 0.01)])
         end
         seg = path.placed_segments[1].segment
         L_seg = arc_length(seg)
         @test L_seg isa Particles
-        # Integrated material spinning over the segment = 2.0 * L_seg.
-        @test total_spinning(path; s_start = 0.0,
+        # Integrated material spin over the segment = 2.0 * L_seg.
+        @test total_spin(path; s_start = 0.0,
                              s_end = Float64(_qc_nominalize(L_seg))) ≈
               2.0 * pmean(L_seg) rtol = 1e-3
     finally

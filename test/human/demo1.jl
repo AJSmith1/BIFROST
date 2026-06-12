@@ -417,21 +417,20 @@ function demo_modify_helix_turns_mul(;
 end
 
 # =====================================================================
-# Helix with material spinning.
+# Helix with material spin (ported from the old demo.jl)
 # =====================================================================
 
-function demo_helix_mcm_spinning(;
-    output::AbstractString = joinpath(@__DIR__, "..", "..", "output", "helix-mcm-spinning.html"),
+function demo_helix_mcm_spin(;
+    output::AbstractString = joinpath(@__DIR__, "..", "..", "output", "helix-mcm-spin.html"),
     fidelity::Float64 = 1.0,
-    title::AbstractString = "Helix with MCM spinning",
+    title::AbstractString = "Helix with MCM spin",
 )
     # Geometry-only demo. Uses the PathGeometry module wrapper from
     # path-geometry-plot.jl so the dispatch on `PathGeometry.SubpathBuilt`
     # in `write_path_geometry_plot3d` resolves correctly.
     PG = PathGeometry
-    sb = PG.SubpathBuilder(); PG.start!(sb)
-    PG.straight!(sb; length = 1.0,
-                 meta = [PG.Nickname("lead-in"), PG.Spinning(; rate = 2π)])
+    sb = PG.SubpathBuilder(); PG.start!(sb; spin_rate = 2π)
+    PG.straight!(sb; length = 1.0, meta = [PG.Nickname("lead-in")])
     PG.helix!(sb; radius = 0.5, pitch = 0.05, turns = 4.0, axis_angle = 0.0,
               meta = [PG.Nickname("helix")])
     PG.straight!(sb; length = 1.0, meta = [PG.Nickname("lead-out")])
@@ -537,9 +536,9 @@ const DEMO_INDEX = [
      desc = "MCMmul(:pitch) on the helix of a 4-segment baseline."),
     (group = "modify", fn = demo_modify_helix_turns_mul, kwargs = NamedTuple(),
      desc = "MCMmul(:turns) on the helix of a 4-segment baseline."),
-    (group = "spinning", fn = demo_helix_mcm_spinning, kwargs = NamedTuple(),
-     desc = "Helix with a constant material spinning rate applied via Spinning meta. " *
-            "Demonstrates that material spinning propagates through the geometry " *
+    (group = "spin", fn = demo_helix_mcm_spin, kwargs = NamedTuple(),
+     desc = "Helix with a constant material spin rate set via start!(; spin_rate). " *
+            "Demonstrates that material spin propagates through the geometry " *
             "layer's Frenet frame independent of segment torsion."),
     (group = "adaptive-step", fn = demo_adaptive_step_doubling, kwargs = NamedTuple(),
      desc = "Adaptive step-doubling diagnostic on a smooth noncommuting generator " *
@@ -554,12 +553,12 @@ Run every demo in `DEMO_INDEX` and write `demo-index.html` linking to each
 output file with a short description.
 
 Geometry-only demos live in `demo-path-geometry.jl`; this file covers
-modify-pipeline demos plus the adaptive step-doubling and helix-mcm-spinning
+modify-pipeline demos plus the adaptive step-doubling and helix-mcm-spin
 diagnostics.
 """
 const _DEMO1_GROUP_TITLES = Dict(
     "modify"        => "Modify (MCM parameter perturbations)",
-    "spinning"         => "Spinning",
+    "spin"         => "Spin",
     "adaptive-step" => "Adaptive step-doubling",
 )
 

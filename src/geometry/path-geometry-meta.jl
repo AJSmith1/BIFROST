@@ -28,7 +28,7 @@ whichever layer acts on the annotation.
 
 Segments and Subpaths may carry meta this layer does not interpret. The geometry
 layer stores all meta verbatim and acts only on what pertains to its own geometry:
-`Nickname`, `Spinning`, and `MCMadd`/`MCMmul` whose symbol names one of a
+`Nickname` and `MCMadd`/`MCMmul` whose symbol names one of a
 segment's own fields. Any other annotation is carried through inertly — its
 meaning is defined and applied by a consuming layer (for example, the fiber
 assembly interprets a thermal annotation it alone can resolve), never here.
